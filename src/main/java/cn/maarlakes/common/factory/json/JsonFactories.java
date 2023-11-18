@@ -12,7 +12,7 @@ public final class JsonFactories {
     private JsonFactories() {
     }
 
-    private static final Supplier<JsonProvider> PROVIDER = ProviderFactories.getProvider(JsonProvider.class, () -> {
+    private static final Supplier<JsonProvider> PROVIDER = ProviderFactories.getSingletonProvider(JsonProvider.class, () -> {
         throw new IllegalStateException("No JsonProvider implementation found");
     });
 

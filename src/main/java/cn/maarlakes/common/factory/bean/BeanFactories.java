@@ -21,7 +21,7 @@ public final class BeanFactories {
     private BeanFactories() {
     }
 
-    private static final Supplier<BeanProvider[]> PROVIDER = ProviderFactories.getProviders(BeanProvider.class, () -> new BeanProvider[]{ReflectBeanProvider.getInstance()});
+    private static final Supplier<BeanProvider[]> PROVIDER = ProviderFactories.getSingletonProviders(BeanProvider.class, () -> new BeanProvider[]{ReflectBeanProvider.getInstance()});
 
     public static boolean contains(@Nonnull Class<?> beanType) {
         for (BeanProvider provider : PROVIDER.get()) {

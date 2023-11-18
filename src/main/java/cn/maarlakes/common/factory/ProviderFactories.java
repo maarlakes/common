@@ -7,6 +7,8 @@ import jakarta.annotation.Nonnull;
 import java.lang.reflect.Array;
 import java.util.Objects;
 import java.util.ServiceLoader;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
@@ -16,6 +18,9 @@ import java.util.stream.StreamSupport;
 public final class ProviderFactories {
     private ProviderFactories() {
     }
+
+    private final static ConcurrentMap<Object, Object> SINGLETON_PROVIDERS = new ConcurrentHashMap<>();
+    private final static ConcurrentMap<Object, Object> SINGLETON_PROVIDER = new ConcurrentHashMap<>();
 
     public static <T> Supplier<T> getProvider(@Nonnull Class<T> type, @Nonnull Supplier<T> defaultProvider) {
         return Lazy.of(() -> {
@@ -27,6 +32,11 @@ public final class ProviderFactories {
         });
     }
 
+    @SuppressWarnings("unchecked")
+    public static <T> Supplier<T> getSingletonProvider(@Nonnull Class<T> type, @Nonnull Supplier<T> defaultProvider) {
+        return (Supplier<T>) SINGLETON_PROVIDER.computeIfAbsent(type, k -> getProvider(type, defaultProvider));
+    }
+
     @Nonnull
     @SuppressWarnings("unchecked")
     public static <T> Supplier<T[]> getProviders(@Nonnull Class<T> type) {
@@ -36,6 +46,18 @@ public final class ProviderFactories {
     @Nonnull
     public static <T> Supplier<T[]> getProviders(@Nonnull Class<T> type, @Nonnull Supplier<T[]> defaultProviders) {
         return doGetProviders(type, Objects.requireNonNull(defaultProviders));
+    }
+
+    @Nonnull
+    @SuppressWarnings("unchecked")
+    public static <T> Supplier<T[]> getSingletonProviders(@Nonnull Class<T> type) {
+        return getSingletonProviders(type, () -> (T[]) Array.newInstance(type, 0));
+    }
+
+    @Nonnull
+    @SuppressWarnings("unchecked")
+    public static <T> Supplier<T[]> getSingletonProviders(@Nonnull Class<T> type, @Nonnull Supplier<T[]> defaultProviders) {
+        return (Supplier<T[]>) SINGLETON_PROVIDERS.computeIfAbsent(type, k -> getProviders(type, defaultProviders));
     }
 
     @SuppressWarnings("unchecked")
