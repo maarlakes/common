@@ -3,15 +3,14 @@ package cn.maarlakes.common.id;
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 import jakarta.annotation.Nonnull;
 
-import java.security.SecureRandom;
+import static com.aventrix.jnanoid.jnanoid.NanoIdUtils.DEFAULT_ALPHABET;
+import static com.aventrix.jnanoid.jnanoid.NanoIdUtils.DEFAULT_NUMBER_GENERATOR;
 
 /**
  * @author linjpxc
  */
 public final class NanoIdGenerator implements IdGenerator {
-    private static final char[] DEFAULT_ALPHABET = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
     private static final int LENGTH = 21;
-    private final SecureRandom secureRandom = new SecureRandom();
 
     private final int length;
 
@@ -20,20 +19,12 @@ public final class NanoIdGenerator implements IdGenerator {
     }
 
     public NanoIdGenerator(int length) {
-        this.length = length - 1;
-    }
-
-    public static NanoIdGenerator getInstance() {
-        return Helper.GENERATOR;
+        this.length = length;
     }
 
     @Nonnull
     @Override
     public String generateId() {
-        return (this.secureRandom.nextInt(9) + 1) + NanoIdUtils.randomNanoId(this.secureRandom, DEFAULT_ALPHABET, this.length);
-    }
-
-    private static final class Helper {
-        static final NanoIdGenerator GENERATOR = new NanoIdGenerator();
+        return NanoIdUtils.randomNanoId(DEFAULT_NUMBER_GENERATOR, DEFAULT_ALPHABET, this.length);
     }
 }

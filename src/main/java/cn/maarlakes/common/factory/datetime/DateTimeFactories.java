@@ -1,22 +1,25 @@
 package cn.maarlakes.common.factory.datetime;
 
-import cn.maarlakes.common.factory.ProviderFactories;
+import cn.maarlakes.common.spi.SpiServiceLoader;
+import cn.maarlakes.common.utils.CompareUtils;
 import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 
 import java.time.*;
+import java.time.chrono.ChronoLocalDate;
+import java.time.chrono.ChronoLocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalQueries;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static java.time.temporal.ChronoField.*;
 
@@ -27,7 +30,11 @@ public final class DateTimeFactories {
     private DateTimeFactories() {
     }
 
-    private static final Supplier<List<ParserWrapper>> PARSER = Lazy.of(() -> Arrays.stream(ProviderFactories.getProviders(DateTimeParser.class).get()).map(ParserWrapper::new).collect(Collectors.toList()));
+    private static final Supplier<List<ParserWrapper>> PARSER = Lazy.of(() ->
+            StreamSupport.stream(SpiServiceLoader.loadShared(DateTimeParser.class).spliterator(), false)
+                    .map(ParserWrapper::new)
+                    .collect(Collectors.toList())
+    );
 
     public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
@@ -111,6 +118,26 @@ public final class DateTimeFactories {
                     item.counter.incrementAndGet();
                     return time;
                 }).orElseGet(() -> LocalDateTime.parse(newDatetime, DATE_TIME_FORMATTER.withLocale(locale)));
+    }
+
+    @Nonnull
+    public static <T extends ChronoLocalDateTime<?>> T min(@Nonnull T first, @Nonnull T... others) {
+        return CompareUtils.min(first, others);
+    }
+
+    @Nonnull
+    public static <T extends ChronoLocalDateTime<?>> T max(@Nonnull T first, @Nonnull T... others) {
+        return CompareUtils.max(first, others);
+    }
+
+    @Nonnull
+    public static <T extends ChronoLocalDate> T min(@Nonnull T first, @Nonnull T... others) {
+        return CompareUtils.min(first, others);
+    }
+
+    @Nonnull
+    public static <T extends ChronoLocalDate> T max(@Nonnull T first, @Nonnull T... others) {
+        return CompareUtils.max(first, others);
     }
 
     @Nonnull
