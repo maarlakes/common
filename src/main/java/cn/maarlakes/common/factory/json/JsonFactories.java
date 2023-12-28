@@ -1,6 +1,7 @@
 package cn.maarlakes.common.factory.json;
 
-import cn.maarlakes.common.factory.ProviderFactories;
+import cn.maarlakes.common.spi.SpiServiceLoader;
+import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
 
 import java.util.List;
@@ -8,13 +9,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
+/**
+ * @author linjpxc
+ */
 public final class JsonFactories {
     private JsonFactories() {
     }
 
-    private static final Supplier<JsonProvider> PROVIDER = ProviderFactories.getSingletonProvider(JsonProvider.class, () -> {
-        throw new IllegalStateException("No JsonProvider implementation found");
-    });
+    private static final Supplier<JsonProvider> PROVIDER = Lazy.of(() -> SpiServiceLoader.loadShared(JsonProvider.class).firstOptional().orElseThrow(() -> new IllegalStateException("No JsonProvider implementation found")));
 
     @Nonnull
     public static <T> String toJson(@Nonnull T value) {

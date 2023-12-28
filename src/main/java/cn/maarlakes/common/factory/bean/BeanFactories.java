@@ -1,6 +1,6 @@
 package cn.maarlakes.common.factory.bean;
 
-import cn.maarlakes.common.factory.ProviderFactories;
+import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.ClassUtils;
 import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
@@ -8,10 +8,7 @@ import jakarta.annotation.Nonnull;
 import java.lang.reflect.Constructor;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
@@ -21,10 +18,13 @@ public final class BeanFactories {
     private BeanFactories() {
     }
 
-    private static final Supplier<BeanProvider[]> PROVIDER = ProviderFactories.getSingletonProviders(BeanProvider.class, () -> new BeanProvider[]{ReflectBeanProvider.getInstance()});
+    private static final SpiServiceLoader<BeanProvider> SERVICES = SpiServiceLoader.loadShared(BeanProvider.class);
 
     public static boolean contains(@Nonnull Class<?> beanType) {
-        for (BeanProvider provider : PROVIDER.get()) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().contains(beanType);
+        }
+        for (BeanProvider provider : SERVICES) {
             if (provider.contains(beanType)) {
                 return true;
             }
@@ -33,7 +33,10 @@ public final class BeanFactories {
     }
 
     public static boolean contains(@Nonnull String beanName) {
-        for (BeanProvider provider : PROVIDER.get()) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().contains(beanName);
+        }
+        for (BeanProvider provider : SERVICES) {
             if (provider.contains(beanName)) {
                 return true;
             }
@@ -43,26 +46,41 @@ public final class BeanFactories {
 
     @Nonnull
     public static <T> T getBean(@Nonnull Class<T> beanType) {
-        for (BeanProvider provider : PROVIDER.get()) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().getBean(beanType);
+        }
+
+        for (BeanProvider provider : SERVICES) {
             if (provider.contains(beanType)) {
                 return provider.getBean(beanType);
             }
         }
-        throw new RuntimeException("Bean of type " + beanType.getName() + " not found.");
+        throw new BeanException("Bean of type " + beanType.getName() + " not found.");
+    }
+
+    @Nonnull
+    public static <T> Optional<T> getBeanOptional(@Nonnull Class<T> beanType) {
+        return Optional.ofNullable(getBeanOrNull(beanType));
     }
 
     @Nonnull
     public static <T> T getBean(@Nonnull Class<T> beanType, @Nonnull Object... args) {
-        for (BeanProvider provider : PROVIDER.get()) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().getBean(beanType, args);
+        }
+        for (BeanProvider provider : SERVICES) {
             if (provider.contains(beanType)) {
                 return provider.getBean(beanType, args);
             }
         }
-        throw new RuntimeException("Bean of type " + beanType.getName() + " not found.");
+        throw new BeanException("Bean of type " + beanType.getName() + " not found.");
     }
 
     public static <T> T getBeanOrNull(@Nonnull Class<T> beanType) {
-        for (BeanProvider provider : PROVIDER.get()) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().getBeanOrNull(beanType);
+        }
+        for (BeanProvider provider : SERVICES) {
             if (provider.contains(beanType)) {
                 return provider.getBeanOrNull(beanType);
             }
@@ -70,17 +88,29 @@ public final class BeanFactories {
         return null;
     }
 
+    @Nonnull
     public static <T> T getBean(@Nonnull String beanName) {
-        for (BeanProvider provider : PROVIDER.get()) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().getBean(beanName);
+        }
+        for (BeanProvider provider : SERVICES) {
             if (provider.contains(beanName)) {
                 return provider.getBean(beanName);
             }
         }
-        throw new RuntimeException("Bean of name " + beanName + " not found.");
+        throw new BeanException("Bean of name " + beanName + " not found.");
+    }
+
+    @Nonnull
+    public static <T> Optional<T> getBeanOptional(@Nonnull String beanName) {
+        return Optional.ofNullable(getBeanOrNull(beanName));
     }
 
     public static <T> T getBeanOrNull(@Nonnull String beanName) {
-        for (BeanProvider provider : PROVIDER.get()) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().getBeanOrNull(beanName);
+        }
+        for (BeanProvider provider : SERVICES) {
             if (provider.contains(beanName)) {
                 return provider.getBeanOrNull(beanName);
             }
@@ -121,8 +151,11 @@ public final class BeanFactories {
 
     @Nonnull
     public static <T> List<T> getBeans(@Nonnull Class<T> beanType) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().getBeans(beanType);
+        }
         final List<T> list = new ArrayList<>();
-        for (BeanProvider provider : PROVIDER.get()) {
+        for (BeanProvider provider : SERVICES) {
             list.addAll(provider.getBeans(beanType));
         }
         return list;
@@ -130,8 +163,11 @@ public final class BeanFactories {
 
     @Nonnull
     public static <T> Map<String, T> getBeanMap(@Nonnull Class<T> beanType) {
+        if (SERVICES.isEmpty()) {
+            return ReflectBeanProvider.getInstance().getBeanMap(beanType);
+        }
         final Map<String, T> map = new HashMap<>();
-        for (BeanProvider provider : PROVIDER.get()) {
+        for (BeanProvider provider : SERVICES) {
             map.putAll(provider.getBeanMap(beanType));
         }
         return map;

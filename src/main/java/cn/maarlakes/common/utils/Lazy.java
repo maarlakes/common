@@ -16,11 +16,12 @@ public final class Lazy {
         return new Supplier<T>() {
 
             private volatile T value = null;
+            private final Object sync = new Object();
 
             @Override
             public T get() {
                 if (this.value == null) {
-                    synchronized (this) {
+                    synchronized (this.sync) {
                         if (this.value == null) {
                             this.value = action.get();
                         }

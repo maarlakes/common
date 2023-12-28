@@ -19,6 +19,8 @@ public class NamedThreadFactory implements ThreadFactory {
 
     @Override
     public Thread newThread(@Nonnull Runnable action) {
-        return new Thread(action, namePrefix + "-" + id.incrementAndGet());
+        final Thread thread = new Thread(action, namePrefix + "-" + id.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
     }
 }

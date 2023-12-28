@@ -1,5 +1,6 @@
 package cn.maarlakes.common.factory.datetime;
 
+import cn.maarlakes.common.spi.SpiService;
 import jakarta.annotation.Nonnull;
 
 import java.time.temporal.TemporalAccessor;
@@ -9,6 +10,7 @@ import java.util.regex.Pattern;
 /**
  * @author linjpxc
  */
+@SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class TimestampDateTimeParser implements DateTimeParser {
 
     private static final Pattern DATE_TO_MINUTES_PATTERN = Pattern.compile("^\\d{4}((0[1-9])|(1[0-2]))((0[1-9])|([1-2][0-9])|(3[0-1]))(([0-1][0-9])|(2[0-3]))(([0-5][0-9])|60)$");
