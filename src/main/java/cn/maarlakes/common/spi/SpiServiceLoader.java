@@ -99,7 +99,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     }
 
     @Nonnull
-    public static <S> SpiServiceLoader<S> load(@Nonnull Class<S> service, @Nonnull ClassLoader loader) {
+    public static <S> SpiServiceLoader<S> load(@Nonnull Class<S> service, ClassLoader loader) {
         return new SpiServiceLoader<>(service, loader, false);
     }
 
@@ -108,9 +108,10 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     }
 
     @SuppressWarnings("unchecked")
-    public static <S> SpiServiceLoader<S> loadShared(@Nonnull Class<S> service, @Nonnull ClassLoader loader) {
-        return (SpiServiceLoader<S>) SERVICE_LOADER_CACHE.computeIfAbsent(loader, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(service, k -> new SpiServiceLoader<>(service, loader, true));
+    public static <S> SpiServiceLoader<S> loadShared(@Nonnull Class<S> service, ClassLoader loader) {
+        final ClassLoader cl = loader == null ? ClassLoader.getSystemClassLoader() : loader;
+        return (SpiServiceLoader<S>) SERVICE_LOADER_CACHE.computeIfAbsent(cl, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(service, k -> new SpiServiceLoader<>(service, cl, true));
     }
 
     private T loadService(@Nonnull Holder holder) {
@@ -164,15 +165,22 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
             }
             if (map.isEmpty() && this.isShared) {
                 // 移除
-                SERVICE_LOADER_CACHE.remove(this.loader);
+                this.remove();
             }
 
             return map.values().stream().sorted().collect(Collectors.toList());
         } catch (IOException | ClassNotFoundException e) {
             if (this.isShared) {
-                SERVICE_LOADER_CACHE.remove(this.loader);
+                this.remove();
             }
             throw new SpiServiceException(e);
+        }
+    }
+
+    private void remove() {
+        final ConcurrentMap<Class<?>, SpiServiceLoader<?>> map = SERVICE_LOADER_CACHE.get(this.loader);
+        if (map != null) {
+            map.remove(this.service);
         }
     }
 

@@ -7,12 +7,16 @@ import java.util.function.Supplier;
 /**
  * @author linjpxc
  */
-public final class Lazy {
-    private Lazy() {
-    }
+public interface Lazy<T> extends Supplier<T> {
+
+    boolean isCreated();
 
     @Nonnull
-    public static <T> Supplier<T> of(@Nonnull Supplier<T> action) {
+//    static <T> Lazy<T> of(@Nonnull Supplier<T> factory) {
+//        return new DefaultLazy<>(factory);
+//    }
+
+    static <T> Supplier<T> of(@Nonnull Supplier<T> factory) {
         return new Supplier<T>() {
 
             private volatile T value = null;
@@ -23,7 +27,7 @@ public final class Lazy {
                 if (this.value == null) {
                     synchronized (this.sync) {
                         if (this.value == null) {
-                            this.value = action.get();
+                            this.value = factory.get();
                         }
                     }
                 }

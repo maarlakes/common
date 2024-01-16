@@ -1,23 +1,27 @@
 package cn.maarlakes.common.factory.datetime;
 
+import cn.maarlakes.common.Ordered;
+import cn.maarlakes.common.OrderedComparator;
 import cn.maarlakes.common.spi.SpiServiceLoader;
-import cn.maarlakes.common.utils.CompareUtils;
-import cn.maarlakes.common.utils.Lazy;
+import cn.maarlakes.common.utils.Comparators;
 import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
 
 import java.time.*;
 import java.time.chrono.ChronoLocalDate;
 import java.time.chrono.ChronoLocalDateTime;
+import java.time.chrono.ChronoZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalQueries;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -30,11 +34,9 @@ public final class DateTimeFactories {
     private DateTimeFactories() {
     }
 
-    private static final Supplier<List<ParserWrapper>> PARSER = Lazy.of(() ->
-            StreamSupport.stream(SpiServiceLoader.loadShared(DateTimeParser.class).spliterator(), false)
-                    .map(ParserWrapper::new)
-                    .collect(Collectors.toList())
-    );
+    private static final ConcurrentMap<ClassLoader, List<ParserWrapper>> PARSERS = new ConcurrentHashMap<>();
+
+    private static final Comparator<Object> COMPARATOR = OrderedComparator.getInstance().reversed();
 
     public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
@@ -110,7 +112,7 @@ public final class DateTimeFactories {
     @Nonnull
     public static LocalDateTime parse(@Nonnull String datetime, @Nonnull Locale locale) {
         final String newDatetime = datetime.trim();
-        return PARSER.get().stream().sorted()
+        return currentParsers().stream().sorted(COMPARATOR)
                 .filter(item -> item.parser.supported(newDatetime, LocalDateTime.class, locale))
                 .findFirst()
                 .map(item -> {
@@ -121,23 +123,135 @@ public final class DateTimeFactories {
     }
 
     @Nonnull
+    @SafeVarargs
     public static <T extends ChronoLocalDateTime<?>> T min(@Nonnull T first, @Nonnull T... others) {
-        return CompareUtils.min(first, others);
+        final T min = Comparators.min(others);
+        if (min != null && first.compareTo(min) > 0) {
+            return min;
+        }
+        return first;
     }
 
     @Nonnull
+    @SafeVarargs
     public static <T extends ChronoLocalDateTime<?>> T max(@Nonnull T first, @Nonnull T... others) {
-        return CompareUtils.max(first, others);
+        final T max = Comparators.max(others);
+        if (max != null && first.compareTo(max) < 0) {
+            return max;
+        }
+        return first;
     }
 
     @Nonnull
+    @SafeVarargs
     public static <T extends ChronoLocalDate> T min(@Nonnull T first, @Nonnull T... others) {
-        return CompareUtils.min(first, others);
+        final T min = Comparators.min(others);
+        if (min != null && first.compareTo(min) > 0) {
+            return min;
+        }
+        return first;
     }
 
     @Nonnull
+    @SafeVarargs
     public static <T extends ChronoLocalDate> T max(@Nonnull T first, @Nonnull T... others) {
-        return CompareUtils.max(first, others);
+        final T max = Comparators.max(others);
+        if (max != null && first.compareTo(max) < 0) {
+            return max;
+        }
+        return first;
+    }
+
+    @Nonnull
+    @SafeVarargs
+    public static <T extends ChronoZonedDateTime<?>> T min(@Nonnull T first, @Nonnull T... others) {
+        final T min = Comparators.min(others);
+        if (min != null && first.compareTo(min) > 0) {
+            return min;
+        }
+        return first;
+    }
+
+    @Nonnull
+    @SafeVarargs
+    public static <T extends ChronoZonedDateTime<?>> T max(@Nonnull T first, @Nonnull T... others) {
+        final T max = Comparators.max(others);
+        if (max != null && first.compareTo(max) < 0) {
+            return max;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static LocalTime min(@Nonnull LocalTime first, @Nonnull LocalTime... others) {
+        final LocalTime min = Comparators.min(others);
+        if (min != null && first.isAfter(min)) {
+            return min;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static LocalTime max(@Nonnull LocalTime first, @Nonnull LocalTime... others) {
+        final LocalTime max = Comparators.max(others);
+        if (max != null && first.isBefore(max)) {
+            return max;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static Instant min(@Nonnull Instant first, @Nonnull Instant... others) {
+        final Instant min = Comparators.min(others);
+        if (min != null && first.isAfter(min)) {
+            return min;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static Instant max(@Nonnull Instant first, @Nonnull Instant... others) {
+        final Instant max = Comparators.max(others);
+        if (max != null && first.isBefore(max)) {
+            return max;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static OffsetDateTime min(@Nonnull OffsetDateTime first, @Nonnull OffsetDateTime... others) {
+        final OffsetDateTime min = Comparators.min(others);
+        if (min != null && first.isAfter(min)) {
+            return min;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static OffsetDateTime max(@Nonnull OffsetDateTime first, @Nonnull OffsetDateTime... others) {
+        final OffsetDateTime max = Comparators.max(others);
+        if (max != null && first.isBefore(max)) {
+            return max;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static OffsetTime min(@Nonnull OffsetTime first, @Nonnull OffsetTime... others) {
+        final OffsetTime min = Comparators.min(others);
+        if (min != null && first.isAfter(min)) {
+            return min;
+        }
+        return first;
+    }
+
+    @Nonnull
+    public static OffsetTime max(@Nonnull OffsetTime first, @Nonnull OffsetTime... others) {
+        final OffsetTime max = Comparators.max(others);
+        if (max != null && first.isBefore(max)) {
+            return max;
+        }
+        return first;
     }
 
     @Nonnull
@@ -229,6 +343,18 @@ public final class DateTimeFactories {
         return LocalDateTime.from(accessor);
     }
 
+    private static List<ParserWrapper> currentParsers() {
+        final ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        if (loader == null) {
+            return Collections.emptyList();
+        }
+        return PARSERS.computeIfAbsent(loader, k ->
+                StreamSupport.stream(SpiServiceLoader.loadShared(DateTimeParser.class).spliterator(), false)
+                        .map(ParserWrapper::new)
+                        .collect(Collectors.toList())
+        );
+    }
+
     private static LocalDate tryToLocalDate(@Nonnull TemporalAccessor accessor) {
         if (accessor instanceof LocalDate) {
             return (LocalDate) accessor;
@@ -290,7 +416,7 @@ public final class DateTimeFactories {
         return LocalTime.of(hour, minute, second, accessor.get(NANO_OF_SECOND));
     }
 
-    private static final class ParserWrapper implements Comparable<ParserWrapper> {
+    private static final class ParserWrapper implements Ordered {
         private final DateTimeParser parser;
         private final AtomicInteger counter = new AtomicInteger(0);
 
@@ -299,11 +425,16 @@ public final class DateTimeFactories {
         }
 
         @Override
-        public int compareTo(@Nullable ParserWrapper other) {
-            if (other == null) {
-                return 1;
-            }
-            return Integer.compareUnsigned(other.counter.get(), this.counter.get());
+        public int order() {
+            return this.counter.get();
         }
+
+//        @Override
+//        public int compareTo(@Nullable ParserWrapper other) {
+//            if (other == null) {
+//                return 1;
+//            }
+//            return Integer.compareUnsigned(other.counter.get(), this.counter.get());
+//        }
     }
 }
