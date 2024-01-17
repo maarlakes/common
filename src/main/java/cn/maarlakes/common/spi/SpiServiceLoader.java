@@ -35,7 +35,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
 
     private SpiServiceLoader(@Nonnull Class<T> service, ClassLoader loader, boolean isShared) {
         this.service = Objects.requireNonNull(service, "Service interface cannot be null");
-        this.loader = (loader == null) ? ClassLoader.getSystemClassLoader() : loader;
+        this.loader = (loader == null) ? service.getClassLoader() : loader;
         this.isShared = isShared;
     }
 
@@ -131,32 +131,30 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
 
 
     private List<Holder> loadServiceHolder() {
-        final Enumeration<URL>[] configArray = this.loadConfigs();
+        final Enumeration<URL> configs = this.loadConfigs();
         try {
             final Map<String, Holder> map = new HashMap<>();
-            for (Enumeration<URL> configs : configArray) {
-                while (configs.hasMoreElements()) {
-                    final URL url = configs.nextElement();
-                    try (InputStream in = url.openStream()) {
-                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                            String ln;
-                            int lineNumber = 0;
-                            while ((ln = reader.readLine()) != null) {
-                                lineNumber++;
-                                final int ci = ln.indexOf('#');
-                                if (ci >= 0) {
-                                    ln = ln.substring(0, ci);
-                                }
-                                ln = ln.trim();
-                                if (!ln.isEmpty()) {
-                                    this.check(url, ln, lineNumber);
-                                    if (!map.containsKey(ln)) {
-                                        final Class<?> type = Class.forName(ln, false, loader);
-                                        if (!this.service.isAssignableFrom(type)) {
-                                            throw new SpiServiceException(this.service.getName() + ": Provider" + ln + " not a subtype");
-                                        }
-                                        map.put(ln, new Holder(type, type.getAnnotation(SpiService.class)));
+            while (configs.hasMoreElements()) {
+                final URL url = configs.nextElement();
+                try (InputStream in = url.openStream()) {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                        String ln;
+                        int lineNumber = 0;
+                        while ((ln = reader.readLine()) != null) {
+                            lineNumber++;
+                            final int ci = ln.indexOf('#');
+                            if (ci >= 0) {
+                                ln = ln.substring(0, ci);
+                            }
+                            ln = ln.trim();
+                            if (!ln.isEmpty()) {
+                                this.check(url, ln, lineNumber);
+                                if (!map.containsKey(ln)) {
+                                    final Class<?> type = Class.forName(ln, false, loader);
+                                    if (!this.service.isAssignableFrom(type)) {
+                                        throw new SpiServiceException(this.service.getName() + ": Provider" + ln + " not a subtype");
                                     }
+                                    map.put(ln, new Holder(type, type.getAnnotation(SpiService.class)));
                                 }
                             }
                         }
@@ -184,11 +182,10 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private Enumeration<URL>[] loadConfigs() {
+    private Enumeration<URL> loadConfigs() {
         final String fullName = PREFIX + service.getName();
         try {
-            return new Enumeration[]{this.loader.getResources(fullName), ClassLoader.getSystemResources(fullName)};
+            return this.loader.getResources(fullName);
         } catch (IOException e) {
             throw new SpiServiceException(service.getName() + ": Error locating configuration files", e);
         }

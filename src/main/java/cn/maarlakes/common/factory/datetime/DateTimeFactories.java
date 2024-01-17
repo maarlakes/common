@@ -4,6 +4,7 @@ import cn.maarlakes.common.Ordered;
 import cn.maarlakes.common.OrderedComparator;
 import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.Comparators;
+import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
 
 import java.time.*;
@@ -15,13 +16,11 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalQueries;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -34,7 +33,11 @@ public final class DateTimeFactories {
     private DateTimeFactories() {
     }
 
-    private static final ConcurrentMap<ClassLoader, List<ParserWrapper>> PARSERS = new ConcurrentHashMap<>();
+    private static final Supplier<List<ParserWrapper>> PARSER = Lazy.of(() ->
+            StreamSupport.stream(SpiServiceLoader.loadShared(DateTimeParser.class, DateTimeParser.class.getClassLoader()).spliterator(), false)
+                    .map(ParserWrapper::new)
+                    .collect(Collectors.toList())
+    );
 
     private static final Comparator<Object> COMPARATOR = OrderedComparator.getInstance().reversed();
 
@@ -112,7 +115,7 @@ public final class DateTimeFactories {
     @Nonnull
     public static LocalDateTime parse(@Nonnull String datetime, @Nonnull Locale locale) {
         final String newDatetime = datetime.trim();
-        return currentParsers().stream().sorted(COMPARATOR)
+        return PARSER.get().stream().sorted(COMPARATOR)
                 .filter(item -> item.parser.supported(newDatetime, LocalDateTime.class, locale))
                 .findFirst()
                 .map(item -> {
@@ -341,18 +344,6 @@ public final class DateTimeFactories {
             return LocalDateTime.of(LocalDate.now(), time);
         }
         return LocalDateTime.from(accessor);
-    }
-
-    private static List<ParserWrapper> currentParsers() {
-        final ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        if (loader == null) {
-            return Collections.emptyList();
-        }
-        return PARSERS.computeIfAbsent(loader, k ->
-                StreamSupport.stream(SpiServiceLoader.loadShared(DateTimeParser.class).spliterator(), false)
-                        .map(ParserWrapper::new)
-                        .collect(Collectors.toList())
-        );
     }
 
     private static LocalDate tryToLocalDate(@Nonnull TemporalAccessor accessor) {

@@ -19,6 +19,8 @@ public final class BeanFactories {
     private BeanFactories() {
     }
 
+    private static final SpiServiceLoader<BeanProvider> PROVIDERS = SpiServiceLoader.loadShared(BeanProvider.class, BeanProvider.class.getClassLoader());
+
     public static boolean contains(@Nonnull Class<?> beanType) {
         return exec(provider -> provider.contains(beanType)).orElse(false);
     }
@@ -95,7 +97,7 @@ public final class BeanFactories {
 
     @Nonnull
     public static <T> List<T> getBeans(@Nonnull Class<T> beanType) {
-        final SpiServiceLoader<BeanProvider> service = SpiServiceLoader.loadShared(BeanProvider.class);
+        final SpiServiceLoader<BeanProvider> service = PROVIDERS;
         if (service.isEmpty()) {
             return ReflectBeanProvider.getInstance().getBeans(beanType);
         }
@@ -108,7 +110,7 @@ public final class BeanFactories {
 
     @Nonnull
     public static <T> Map<String, T> getBeanMap(@Nonnull Class<T> beanType) {
-        final SpiServiceLoader<BeanProvider> service = SpiServiceLoader.loadShared(BeanProvider.class);
+        final SpiServiceLoader<BeanProvider> service = PROVIDERS;
 
         if (service.isEmpty()) {
             return ReflectBeanProvider.getInstance().getBeanMap(beanType);
@@ -177,7 +179,7 @@ public final class BeanFactories {
 
     @Nonnull
     private static <T> Optional<T> exec(Function<BeanProvider, T> func) {
-        final SpiServiceLoader<BeanProvider> service = SpiServiceLoader.loadShared(BeanProvider.class);
+        final SpiServiceLoader<BeanProvider> service = PROVIDERS;
         if (service.isEmpty()) {
             return Optional.ofNullable(func.apply(ReflectBeanProvider.getInstance()));
         }
