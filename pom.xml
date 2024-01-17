@@ -51,6 +51,11 @@
             <artifactId>jnanoid</artifactId>
             <version>${jnanoid.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.wechatpay-apiv3</groupId>
+            <artifactId>wechatpay-java</artifactId>
+            <version>0.2.12</version>
+        </dependency>
 
         <dependency>
             <groupId>jakarta.annotation</groupId>
