@@ -7,7 +7,7 @@ import java.util.function.Supplier;
 /**
  * @author linjpxc
  */
-final class DefaultLazy<T> implements Lazy<T> {
+class DefaultLazy<T> implements Lazy<T> {
 
     private final Supplier<T> factory;
     private volatile T value = null;
