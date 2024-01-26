@@ -93,7 +93,7 @@ public abstract class AbstractChainFactory implements ChainFactory {
         protected String toString(@Nonnull Object proxy, @Nonnull Method method, @Nonnull Object[] args) {
             final String str = super.toString();
             final int index = str.indexOf("@");
-            return this.type + "$Proxy" + "@" + str.substring(Math.max(0, index + 1));
+            return this.type + "$ChainProxy" + "@" + str.substring(Math.max(0, index + 1));
         }
     }
 }

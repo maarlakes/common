@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author linjpxc
@@ -91,6 +92,11 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     @Override
     public Iterator<T> iterator() {
         return this.holders.get().stream().map(this::loadService).iterator();
+    }
+
+    @Nonnull
+    public Stream<T> stream() {
+        return this.holders.get().stream().map(this::loadService);
     }
 
     @Nonnull
