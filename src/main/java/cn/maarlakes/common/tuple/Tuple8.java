@@ -215,6 +215,14 @@ public class Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> implements Tuple {
         return new Tuple8<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, this.item7, map8.apply(this.item8));
     }
 
+    public <T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(T9 item9) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, this.item7, this.item8, item9);
+    }
+
+    public <T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(@Nonnull Tuple1<T9> tuple) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, this.item7, this.item8, tuple.item1());
+    }
+
     @Nonnull
     @Override
     @SuppressWarnings("unchecked")

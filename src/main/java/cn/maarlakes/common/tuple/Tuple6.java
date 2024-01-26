@@ -171,6 +171,30 @@ public class Tuple6<T1, T2, T3, T4, T5, T6> implements Tuple {
         return new Tuple6<>(this.item1, this.item2, this.item3, this.item4, this.item5, map6.apply(this.item6));
     }
 
+    public <T7> Tuple7<T1, T2, T3, T4, T5, T6, T7> concat(T7 item7) {
+        return new Tuple7<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, item7);
+    }
+
+    public <T7> Tuple7<T1, T2, T3, T4, T5, T6, T7> concat(@Nonnull Tuple1<T7> tuple) {
+        return new Tuple7<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, tuple.item1());
+    }
+
+    public <T7, T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(T7 item7, T8 item8) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, item7, item8);
+    }
+
+    public <T7, T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(@Nonnull Tuple2<T7, T8> tuple) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, tuple.item1(), tuple.item2());
+    }
+
+    public <T7, T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(T7 item7, T8 item8, T9 item9) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, item7, item8, item9);
+    }
+
+    public <T7, T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(@Nonnull Tuple3<T7, T8, T9> tuple) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, tuple.item1(), tuple.item2(), tuple.item3());
+    }
+
     @Nonnull
     @Override
     @SuppressWarnings("unchecked")

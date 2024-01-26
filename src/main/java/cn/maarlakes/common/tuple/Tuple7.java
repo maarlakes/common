@@ -193,6 +193,22 @@ public class Tuple7<T1, T2, T3, T4, T5, T6, T7> implements Tuple {
         return new Tuple7<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, map7.apply(this.item7));
     }
 
+    public <T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(T8 item8) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, this.item7, item8);
+    }
+
+    public <T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(@Nonnull Tuple1<T8> tuple) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, this.item7, tuple.item1());
+    }
+
+    public <T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(T8 item8, T9 item9) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, this.item7, item8, item9);
+    }
+
+    public <T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(@Nonnull Tuple2<T8, T9> tuple) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, this.item6, this.item7, tuple.item1(), tuple.item2());
+    }
+
     @Nonnull
     @Override
     @SuppressWarnings("unchecked")
