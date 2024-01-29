@@ -75,6 +75,6 @@ public final class JsonFactories {
     }
 
     private static JsonProvider jsonProvider() {
-        return SpiServiceLoader.loadShared(JsonProvider.class, JsonProvider.class.getClassLoader()).first();
+        return SpiServiceLoader.loadShared(JsonProvider.class, JsonProvider.class.getClassLoader()).firstOptional().orElseGet(FastjsonProvider::new);
     }
 }
