@@ -6,6 +6,7 @@ import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author linjpxc
@@ -62,6 +63,34 @@ public final class ClassUtils {
             }
         }
         return types;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> Class<T> loadClass(@Nonnull String className) {
+        return (Class<T>) loadClassOptional(className).orElse(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> Optional<Class<T>> loadClassOptional(@Nonnull String className) {
+        try {
+            return Optional.of((Class<T>) Class.forName(className));
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+    }
+
+    @SuppressWarnings({"unchecked"})
+    public static <T> Class<T> loadClass(@Nonnull String className, boolean initialize, ClassLoader loader) {
+        return (Class<T>) loadClassOptional(className, initialize, loader).orElse(null);
+    }
+
+    @SuppressWarnings({"unchecked"})
+    public static <T> Optional<Class<T>> loadClassOptional(@Nonnull String className, boolean initialize, ClassLoader loader) {
+        try {
+            return Optional.of((Class<T>) Class.forName(className, initialize, loader));
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
     }
 
     private static boolean matchTypes(Class<?>[] left, Class<?>[] right) {

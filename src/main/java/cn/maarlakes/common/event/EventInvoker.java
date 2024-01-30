@@ -1,12 +1,11 @@
 package cn.maarlakes.common.event;
 
-import cn.maarlakes.common.Ordered;
 import jakarta.annotation.Nonnull;
 
 /**
  * @author linjpxc
  */
-public interface EventInvoker extends Ordered {
+public interface EventInvoker {
 
     boolean supportedAsync();
 

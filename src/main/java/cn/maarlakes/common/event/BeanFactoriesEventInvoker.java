@@ -84,11 +84,6 @@ class BeanFactoriesEventInvoker implements EventInvoker {
         return false;
     }
 
-    @Override
-    public int order() {
-        return this.eventListener.order();
-    }
-
     private void invokeMethod(@Nonnull Object... args) {
         try {
             this.method.invoke(this.listener, args);

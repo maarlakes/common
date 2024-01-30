@@ -1,8 +1,8 @@
 package cn.maarlakes.common.spi;
 
+import cn.maarlakes.common.AnnotationOrderComparator;
 import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -83,7 +83,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     public Optional<T> lastOptional(@Nonnull Class<? extends T> serviceType) {
         return this.holders.get().stream()
                 .filter(item -> serviceType.isAssignableFrom(item.serviceType))
-                .sorted((left, right) -> Holder.compare(right, left))
+                .sorted(AnnotationOrderComparator.getInstance())
                 .map(this::loadService)
                 .findFirst();
     }
@@ -214,7 +214,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         }
     }
 
-    private static final class Holder implements Comparable<Holder> {
+    private static final class Holder {
 
         private final Class<?> serviceType;
 
@@ -239,24 +239,6 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         @Override
         public int hashCode() {
             return Objects.hash(serviceType);
-        }
-
-        @Override
-        public int compareTo(@Nullable Holder o) {
-            if (o == null) {
-                return 1;
-            }
-            return Integer.compare(this.spiService == null ? Integer.MAX_VALUE : this.spiService.order(), o.spiService == null ? Integer.MAX_VALUE : o.spiService.order());
-        }
-
-        public static int compare(Holder left, Holder right) {
-            if (left == right) {
-                return 0;
-            }
-            if (left == null) {
-                return -1;
-            }
-            return left.compareTo(right);
         }
     }
 }
