@@ -11,11 +11,18 @@ import java.util.Set;
 /**
  * @author linjpxc
  */
-public class FastjsonProvider implements JsonProvider {
+public final class FastjsonProvider implements JsonProvider {
+    private FastjsonProvider() {
+    }
+
+    @Nonnull
+    public static FastjsonProvider getInstance() {
+        return Helper.PROVIDER;
+    }
+
     @Nonnull
     @Override
     public <T> String toJson(@Nonnull T value) {
-
         return JSON.toJSONString(value);
     }
 
@@ -49,5 +56,9 @@ public class FastjsonProvider implements JsonProvider {
     public <K, V> Map<K, V> toMap(@Nonnull CharSequence json, @Nonnull Class<K> keyType, @Nonnull Class<V> valueType) {
         return JSON.parseObject(json.toString(), new TypeReference<Map<K, V>>() {
         });
+    }
+
+    private static final class Helper {
+        static final FastjsonProvider PROVIDER = new FastjsonProvider();
     }
 }

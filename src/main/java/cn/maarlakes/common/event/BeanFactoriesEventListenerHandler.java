@@ -1,6 +1,5 @@
 package cn.maarlakes.common.event;
 
-import cn.maarlakes.common.AnnotationOrderComparator;
 import cn.maarlakes.common.spi.SpiService;
 import jakarta.annotation.Nonnull;
 
@@ -31,7 +30,6 @@ final class BeanFactoriesEventListenerHandler {
                 }
                 invokers.add(new BeanFactoriesEventInvoker(listener, method, eventListener));
             }
-            invokers.sort(AnnotationOrderComparator.getInstance());
             return Collections.unmodifiableList(invokers);
         }
     }

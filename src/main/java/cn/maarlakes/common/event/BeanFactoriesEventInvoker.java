@@ -1,5 +1,7 @@
 package cn.maarlakes.common.event;
 
+import cn.maarlakes.common.AnnotationOrderComparator;
+import cn.maarlakes.common.Ordered;
 import cn.maarlakes.common.factory.bean.BeanFactories;
 import jakarta.annotation.Nonnull;
 
@@ -11,7 +13,7 @@ import java.security.PrivilegedAction;
 /**
  * @author linjpxc
  */
-class BeanFactoriesEventInvoker implements EventInvoker {
+class BeanFactoriesEventInvoker implements EventInvoker, Ordered {
 
     private final Object listener;
     private final Method method;
@@ -92,5 +94,11 @@ class BeanFactoriesEventInvoker implements EventInvoker {
         } catch (Exception e) {
             throw new EventException(e);
         }
+    }
+
+    @Override
+    public int order() {
+        final Integer order = AnnotationOrderComparator.findOrder(this.method);
+        return order == null ? Ordered.LOWEST : order;
     }
 }
