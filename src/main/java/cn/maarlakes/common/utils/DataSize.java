@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.annotation.JSONType;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -23,6 +24,8 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     private final BigDecimal bytes;
     private final NumberFormat baseFormat;
 
+    public static final DataSize ZERO = new DataSize(BigDecimal.ZERO);
+
     private DataSize(@Nonnull BigDecimal bytes) {
         this.bytes = bytes;
         this.baseFormat = new DecimalFormat();
@@ -30,8 +33,11 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     }
 
     @Override
-    public int compareTo(DataSize o) {
-        return 0;
+    public int compareTo(@Nullable DataSize o) {
+        if (o == null) {
+            return 1;
+        }
+        return this.bytes.compareTo(o.bytes);
     }
 
     @Nonnull
