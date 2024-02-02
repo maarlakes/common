@@ -32,4 +32,12 @@ public interface ChainFactory {
     default <H> H createFirstContextReverseChain(@Nonnull Class<H> type) {
         return this.createReverseChain(type, new FirstChainContext<>());
     }
+
+    <H> H createNoneResultChain(@Nonnull Class<H> type);
+
+    <H> H createFirstResultChain(@Nonnull Class<H> type);
+
+    <H> H createNoneResultReverseChain(@Nonnull Class<H> type);
+
+    <H> H createFirstResultReserveChain(@Nonnull Class<H> type);
 }
