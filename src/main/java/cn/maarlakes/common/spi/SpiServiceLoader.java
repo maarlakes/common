@@ -14,7 +14,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -31,7 +30,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     private final ClassLoader loader;
     private final boolean isShared;
 
-    private final Supplier<List<Holder>> holders = Lazy.of(this::loadServiceHolder);
+    private final Supplier<Collection<Holder>> holders = Lazy.of(this::loadServiceHolder);
     private final ConcurrentMap<Class<?>, T> serviceCache = new ConcurrentHashMap<>();
 
     private SpiServiceLoader(@Nonnull Class<T> service, ClassLoader loader, boolean isShared) {
@@ -61,7 +60,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
 
     @Nonnull
     public Optional<T> firstOptional(@Nonnull Class<? extends T> serviceType) {
-        return this.holders.get().stream().filter(item -> serviceType.isAssignableFrom(item.serviceType)).map(this::loadService).findFirst();
+        return this.stream(serviceType).findFirst();
     }
 
     @Nonnull
@@ -81,22 +80,18 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
 
     @Nonnull
     public Optional<T> lastOptional(@Nonnull Class<? extends T> serviceType) {
-        return this.holders.get().stream()
-                .filter(item -> serviceType.isAssignableFrom(item.serviceType))
-                .sorted(AnnotationOrderComparator.getInstance())
-                .map(this::loadService)
-                .findFirst();
+        return this.stream(serviceType, AnnotationOrderComparator.getInstance().reversed()).findFirst();
     }
 
     @Nonnull
     @Override
     public Iterator<T> iterator() {
-        return this.holders.get().stream().map(this::loadService).iterator();
+        return this.stream().iterator();
     }
 
     @Nonnull
     public Stream<T> stream() {
-        return this.holders.get().stream().map(this::loadService);
+        return this.stream(this.service);
     }
 
     @Nonnull
@@ -120,6 +115,17 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
                 .computeIfAbsent(service, k -> new SpiServiceLoader<>(service, cl, true));
     }
 
+    private Stream<T> stream(@Nonnull Class<? extends T> serviceTye) {
+        return this.stream(serviceTye, AnnotationOrderComparator.getInstance());
+    }
+
+    private Stream<T> stream(@Nonnull Class<? extends T> serviceType, @Nonnull Comparator<? super T> comparator) {
+        return this.holders.get().stream()
+                .filter(item -> serviceType.isAssignableFrom(item.serviceType))
+                .map(this::loadService)
+                .sorted(comparator);
+    }
+
     private T loadService(@Nonnull Holder holder) {
         if (holder.spiService != null && holder.spiService.lifecycle() == SpiService.Lifecycle.SINGLETON) {
             return this.serviceCache.computeIfAbsent(holder.serviceType, k -> this.createService(holder));
@@ -135,8 +141,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         }
     }
 
-
-    private List<Holder> loadServiceHolder() {
+    private Collection<Holder> loadServiceHolder() {
         final Enumeration<URL> configs = this.loadConfigs();
         try {
             final Map<String, Holder> map = new HashMap<>();
@@ -172,7 +177,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
                 this.remove();
             }
 
-            return map.values().stream().sorted().collect(Collectors.toList());
+            return map.values();
         } catch (IOException | ClassNotFoundException e) {
             if (this.isShared) {
                 this.remove();
