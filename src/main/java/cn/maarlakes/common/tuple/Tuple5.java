@@ -149,6 +149,38 @@ public class Tuple5<T1, T2, T3, T4, T5> implements Tuple {
         return new Tuple5<>(this.item1, this.item2, this.item3, this.item4, map5.apply(this.item5));
     }
 
+    public <T6> Tuple6<T1, T2, T3, T4, T5, T6> concat(T6 item6) {
+        return new Tuple6<>(this.item1, this.item2, this.item3, this.item4, this.item5, item6);
+    }
+
+    public <T6> Tuple6<T1, T2, T3, T4, T5, T6> concat(@Nonnull Tuple1<T6> tuple) {
+        return new Tuple6<>(this.item1, this.item2, this.item3, this.item4, this.item5, tuple.item1());
+    }
+
+    public <T6, T7> Tuple7<T1, T2, T3, T4, T5, T6, T7> concat(T6 item6, T7 item7) {
+        return new Tuple7<>(this.item1, this.item2, this.item3, this.item4, this.item5, item6, item7);
+    }
+
+    public <T6, T7> Tuple7<T1, T2, T3, T4, T5, T6, T7> concat(@Nonnull Tuple2<T6, T7> tuple) {
+        return new Tuple7<>(this.item1, this.item2, this.item3, this.item4, this.item5, tuple.item1(), tuple.item2());
+    }
+
+    public <T6, T7, T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(T6 item6, T7 item7, T8 item8) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, this.item4, this.item5, item6, item7, item8);
+    }
+
+    public <T6, T7, T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(@Nonnull Tuple3<T6, T7, T8> tuple) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, this.item4, this.item5, tuple.item1(), tuple.item2(), tuple.item3());
+    }
+
+    public <T6, T7, T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(T6 item6, T7 item7, T8 item8, T9 item9) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, item6, item7, item8, item9);
+    }
+
+    public <T6, T7, T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(@Nonnull Tuple4<T6, T7, T8, T9> tuple) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, this.item4, this.item5, tuple.item1(), tuple.item2(), tuple.item3(), tuple.item4());
+    }
+
     @Nonnull
     @Override
     @SuppressWarnings("unchecked")

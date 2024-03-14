@@ -133,15 +133,15 @@ public final class Comparators {
 
     @Nonnull
     public static <T> Optional<T> minOptional(@Nonnull Iterator<T> iterator, @Nonnull Comparator<? super T> comparator) {
-        T min = null;
+        if (!iterator.hasNext()) {
+            return Optional.empty();
+        }
+
+        T min = iterator.next();
         while (iterator.hasNext()) {
             final T next = iterator.next();
-            if (min == null) {
+            if (comparator.compare(min, next) > 0) {
                 min = next;
-            } else {
-                if (comparator.compare(min, next) > 0) {
-                    min = next;
-                }
             }
         }
         return Optional.ofNullable(min);
@@ -162,17 +162,17 @@ public final class Comparators {
 
     @Nonnull
     public static <T> Optional<T> maxOptional(@Nonnull Iterator<T> iterator, @Nonnull Comparator<? super T> comparator) {
-        T max = null;
+        if (!iterator.hasNext()) {
+            return Optional.empty();
+        }
+        T max = iterator.next();
         while (iterator.hasNext()) {
             final T next = iterator.next();
-            if (max == null) {
+            if (comparator.compare(max, next) < 0) {
                 max = next;
-            } else {
-                if (comparator.compare(max, next) < 0) {
-                    max = next;
-                }
             }
         }
+
         return Optional.ofNullable(max);
     }
 }

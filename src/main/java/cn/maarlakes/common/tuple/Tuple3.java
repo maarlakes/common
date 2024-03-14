@@ -98,6 +98,54 @@ public class Tuple3<T1, T2, T3> implements Tuple {
         }
     }
 
+    public <T4> Tuple4<T1, T2, T3, T4> concat(T4 item4) {
+        return new Tuple4<>(this.item1, this.item2, this.item3, item4);
+    }
+
+    public <T4> Tuple4<T1, T2, T3, T4> concat(@Nonnull Tuple1<T4> tuple) {
+        return new Tuple4<>(this.item1, this.item2, this.item3, tuple.item1);
+    }
+
+    public <T4, T5> Tuple5<T1, T2, T3, T4, T5> concat(T4 item4, T5 item5) {
+        return new Tuple5<>(this.item1, this.item2, this.item3, item4, item5);
+    }
+
+    public <T4, T5> Tuple5<T1, T2, T3, T4, T5> concat(@Nonnull Tuple2<T4, T5> tuple) {
+        return new Tuple5<>(this.item1, this.item2, this.item3, tuple.item1, tuple.item2);
+    }
+
+    public <T4, T5, T6> Tuple6<T1, T2, T3, T4, T5, T6> concat(T4 item4, T5 item5, T6 item6) {
+        return new Tuple6<>(this.item1, this.item2, this.item3, item4, item5, item6);
+    }
+
+    public <T4, T5, T6> Tuple6<T1, T2, T3, T4, T5, T6> concat(@Nonnull Tuple3<T4, T5, T6> tuple) {
+        return new Tuple6<>(this.item1, this.item2, this.item3, tuple.item1, tuple.item2, tuple.item3);
+    }
+
+    public <T4, T5, T6, T7> Tuple7<T1, T2, T3, T4, T5, T6, T7> concat(T4 item4, T5 item5, T6 item6, T7 item7) {
+        return new Tuple7<>(this.item1, this.item2, this.item3, item4, item5, item6, item7);
+    }
+
+    public <T4, T5, T6, T7> Tuple7<T1, T2, T3, T4, T5, T6, T7> concat(@Nonnull Tuple4<T4, T5, T6, T7> tuple) {
+        return new Tuple7<>(this.item1, this.item2, this.item3, tuple.item1, tuple.item2, tuple.item3, tuple.item4);
+    }
+
+    public <T4, T5, T6, T7, T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(T4 item4, T5 item5, T6 item6, T7 item7, T8 item8) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, item4, item5, item6, item7, item8);
+    }
+
+    public <T4, T5, T6, T7, T8> Tuple8<T1, T2, T3, T4, T5, T6, T7, T8> concat(@Nonnull Tuple5<T4, T5, T6, T7, T8> tuple) {
+        return new Tuple8<>(this.item1, this.item2, this.item3, tuple.item1, tuple.item2, tuple.item3, tuple.item4, tuple.item5);
+    }
+
+    public <T4, T5, T6, T7, T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(T4 item4, T5 item5, T6 item6, T7 item7, T8 item8, T9 item9) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, item4, item5, item6, item7, item8, item9);
+    }
+
+    public <T4, T5, T6, T7, T8, T9> Tuple9<T1, T2, T3, T4, T5, T6, T7, T8, T9> concat(@Nonnull Tuple6<T4, T5, T6, T7, T8, T9> tuple) {
+        return new Tuple9<>(this.item1, this.item2, this.item3, tuple.item1, tuple.item2, tuple.item3, tuple.item4, tuple.item5, tuple.item6);
+    }
+
     @Nonnull
     @Override
     @SuppressWarnings("unchecked")

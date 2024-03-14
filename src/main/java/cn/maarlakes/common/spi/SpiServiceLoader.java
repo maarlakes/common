@@ -1,8 +1,8 @@
 package cn.maarlakes.common.spi;
 
+import cn.maarlakes.common.AnnotationOrderComparator;
 import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -14,7 +14,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author linjpxc
@@ -30,12 +30,12 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     private final ClassLoader loader;
     private final boolean isShared;
 
-    private final Supplier<List<Holder>> holders = Lazy.of(this::loadServiceHolder);
+    private final Supplier<Collection<Holder>> holders = Lazy.of(this::loadServiceHolder);
     private final ConcurrentMap<Class<?>, T> serviceCache = new ConcurrentHashMap<>();
 
     private SpiServiceLoader(@Nonnull Class<T> service, ClassLoader loader, boolean isShared) {
         this.service = Objects.requireNonNull(service, "Service interface cannot be null");
-        this.loader = (loader == null) ? ClassLoader.getSystemClassLoader() : loader;
+        this.loader = (loader == null) ? service.getClassLoader() : loader;
         this.isShared = isShared;
     }
 
@@ -59,8 +59,9 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     }
 
     @Nonnull
+    @SuppressWarnings("unchecked")
     public Optional<T> firstOptional(@Nonnull Class<? extends T> serviceType) {
-        return this.holders.get().stream().filter(item -> serviceType.isAssignableFrom(item.serviceType)).map(this::loadService).findFirst();
+        return (Optional<T>) this.stream(serviceType).findFirst();
     }
 
     @Nonnull
@@ -79,18 +80,25 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     }
 
     @Nonnull
+    @SuppressWarnings("unchecked")
     public Optional<T> lastOptional(@Nonnull Class<? extends T> serviceType) {
-        return this.holders.get().stream()
-                .filter(item -> serviceType.isAssignableFrom(item.serviceType))
-                .sorted((left, right) -> Holder.compare(right, left))
-                .map(this::loadService)
-                .findFirst();
+        return (Optional<T>) this.stream(serviceType, AnnotationOrderComparator.getInstance().reversed()).findFirst();
     }
 
     @Nonnull
     @Override
     public Iterator<T> iterator() {
-        return this.holders.get().stream().map(this::loadService).iterator();
+        return this.stream().iterator();
+    }
+
+    @Nonnull
+    public Stream<T> stream() {
+        return this.stream(this.service);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <S extends T> Stream<S> stream(@Nonnull Class<S> serviceTye) {
+        return (Stream<S>) this.stream(serviceTye, AnnotationOrderComparator.getInstance());
     }
 
     @Nonnull
@@ -114,6 +122,14 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
                 .computeIfAbsent(service, k -> new SpiServiceLoader<>(service, cl, true));
     }
 
+    private <S extends T> Stream<? extends S> stream(@Nonnull Class<? extends S> serviceType, @Nonnull Comparator<? super S> comparator) {
+        return this.holders.get().stream()
+                .filter(item -> serviceType.isAssignableFrom(item.serviceType))
+                .map(this::loadService)
+                .map(serviceType::cast)
+                .sorted(comparator);
+    }
+
     private T loadService(@Nonnull Holder holder) {
         if (holder.spiService != null && holder.spiService.lifecycle() == SpiService.Lifecycle.SINGLETON) {
             return this.serviceCache.computeIfAbsent(holder.serviceType, k -> this.createService(holder));
@@ -129,34 +145,31 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         }
     }
 
-
-    private List<Holder> loadServiceHolder() {
-        final Enumeration<URL>[] configArray = this.loadConfigs();
+    private Collection<Holder> loadServiceHolder() {
+        final Enumeration<URL> configs = this.loadConfigs();
         try {
             final Map<String, Holder> map = new HashMap<>();
-            for (Enumeration<URL> configs : configArray) {
-                while (configs.hasMoreElements()) {
-                    final URL url = configs.nextElement();
-                    try (InputStream in = url.openStream()) {
-                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                            String ln;
-                            int lineNumber = 0;
-                            while ((ln = reader.readLine()) != null) {
-                                lineNumber++;
-                                final int ci = ln.indexOf('#');
-                                if (ci >= 0) {
-                                    ln = ln.substring(0, ci);
-                                }
-                                ln = ln.trim();
-                                if (!ln.isEmpty()) {
-                                    this.check(url, ln, lineNumber);
-                                    if (!map.containsKey(ln)) {
-                                        final Class<?> type = Class.forName(ln, false, loader);
-                                        if (!this.service.isAssignableFrom(type)) {
-                                            throw new SpiServiceException(this.service.getName() + ": Provider" + ln + " not a subtype");
-                                        }
-                                        map.put(ln, new Holder(type, type.getAnnotation(SpiService.class)));
+            while (configs.hasMoreElements()) {
+                final URL url = configs.nextElement();
+                try (InputStream in = url.openStream()) {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                        String ln;
+                        int lineNumber = 0;
+                        while ((ln = reader.readLine()) != null) {
+                            lineNumber++;
+                            final int ci = ln.indexOf('#');
+                            if (ci >= 0) {
+                                ln = ln.substring(0, ci);
+                            }
+                            ln = ln.trim();
+                            if (!ln.isEmpty()) {
+                                this.check(url, ln, lineNumber);
+                                if (!map.containsKey(ln)) {
+                                    final Class<?> type = Class.forName(ln, false, loader);
+                                    if (!this.service.isAssignableFrom(type)) {
+                                        throw new SpiServiceException(this.service.getName() + ": Provider" + ln + " not a subtype");
                                     }
+                                    map.put(ln, new Holder(type, type.getAnnotation(SpiService.class)));
                                 }
                             }
                         }
@@ -168,7 +181,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
                 this.remove();
             }
 
-            return map.values().stream().sorted().collect(Collectors.toList());
+            return map.values();
         } catch (IOException | ClassNotFoundException e) {
             if (this.isShared) {
                 this.remove();
@@ -184,11 +197,10 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private Enumeration<URL>[] loadConfigs() {
+    private Enumeration<URL> loadConfigs() {
         final String fullName = PREFIX + service.getName();
         try {
-            return new Enumeration[]{this.loader.getResources(fullName), ClassLoader.getSystemResources(fullName)};
+            return this.loader.getResources(fullName);
         } catch (IOException e) {
             throw new SpiServiceException(service.getName() + ": Error locating configuration files", e);
         }
@@ -211,7 +223,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         }
     }
 
-    private static final class Holder implements Comparable<Holder> {
+    private static final class Holder {
 
         private final Class<?> serviceType;
 
@@ -236,24 +248,6 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         @Override
         public int hashCode() {
             return Objects.hash(serviceType);
-        }
-
-        @Override
-        public int compareTo(@Nullable Holder o) {
-            if (o == null) {
-                return 1;
-            }
-            return Integer.compare(this.spiService == null ? Integer.MAX_VALUE : this.spiService.order(), o.spiService == null ? Integer.MAX_VALUE : o.spiService.order());
-        }
-
-        public static int compare(Holder left, Holder right) {
-            if (left == right) {
-                return 0;
-            }
-            if (left == null) {
-                return -1;
-            }
-            return left.compareTo(right);
         }
     }
 }

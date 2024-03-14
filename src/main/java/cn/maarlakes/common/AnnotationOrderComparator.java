@@ -1,11 +1,24 @@
 package cn.maarlakes.common;
 
+import cn.maarlakes.common.utils.ClassUtils;
 import jakarta.annotation.Nonnull;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Method;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
  * @author linjpxc
  */
 public class AnnotationOrderComparator extends OrderedComparator {
+
+    private static final Class<? extends Annotation> SPRING_ORDER_ANNOTATION_TYPE;
+
+    static {
+        SPRING_ORDER_ANNOTATION_TYPE = ClassUtils.loadClass("org.springframework.core.annotation.Order");
+    }
 
     protected AnnotationOrderComparator() {
     }
@@ -21,12 +34,33 @@ public class AnnotationOrderComparator extends OrderedComparator {
         if (order != null) {
             return order;
         }
-        final Order orderAnnotation = obj.getClass().getAnnotation(Order.class);
-        if (orderAnnotation != null) {
-            return orderAnnotation.value();
-        }
-        return null;
+        return findOrder(obj.getClass());
     }
+
+    public static Integer findOrder(@Nonnull AnnotatedElement element) {
+        final Order order = element.getAnnotation(Order.class);
+        if (order != null) {
+            return order.value();
+        }
+        if (SPRING_ORDER_ANNOTATION_TYPE == null) {
+            return null;
+        }
+        final Annotation annotation = element.getAnnotation(SPRING_ORDER_ANNOTATION_TYPE);
+        if (annotation == null) {
+            return null;
+        }
+        try {
+            final Method method = annotation.annotationType().getMethod("value");
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                method.setAccessible(true);
+                return null;
+            });
+            return (Integer) method.invoke(annotation);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
 
     private static final class Helper {
         private static final AnnotationOrderComparator INSTANCE = new AnnotationOrderComparator();
