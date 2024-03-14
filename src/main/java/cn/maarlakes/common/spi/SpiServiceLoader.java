@@ -59,8 +59,9 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     }
 
     @Nonnull
+    @SuppressWarnings("unchecked")
     public Optional<T> firstOptional(@Nonnull Class<? extends T> serviceType) {
-        return this.stream(serviceType).findFirst();
+        return (Optional<T>) this.stream(serviceType).findFirst();
     }
 
     @Nonnull
@@ -79,8 +80,9 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     }
 
     @Nonnull
+    @SuppressWarnings("unchecked")
     public Optional<T> lastOptional(@Nonnull Class<? extends T> serviceType) {
-        return this.stream(serviceType, AnnotationOrderComparator.getInstance().reversed()).findFirst();
+        return (Optional<T>) this.stream(serviceType, AnnotationOrderComparator.getInstance().reversed()).findFirst();
     }
 
     @Nonnull
@@ -92,6 +94,11 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     @Nonnull
     public Stream<T> stream() {
         return this.stream(this.service);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <S extends T> Stream<S> stream(@Nonnull Class<S> serviceTye) {
+        return (Stream<S>) this.stream(serviceTye, AnnotationOrderComparator.getInstance());
     }
 
     @Nonnull
@@ -115,14 +122,11 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
                 .computeIfAbsent(service, k -> new SpiServiceLoader<>(service, cl, true));
     }
 
-    private Stream<T> stream(@Nonnull Class<? extends T> serviceTye) {
-        return this.stream(serviceTye, AnnotationOrderComparator.getInstance());
-    }
-
-    private Stream<T> stream(@Nonnull Class<? extends T> serviceType, @Nonnull Comparator<? super T> comparator) {
+    private <S extends T> Stream<? extends S> stream(@Nonnull Class<? extends S> serviceType, @Nonnull Comparator<? super S> comparator) {
         return this.holders.get().stream()
                 .filter(item -> serviceType.isAssignableFrom(item.serviceType))
                 .map(this::loadService)
+                .map(serviceType::cast)
                 .sorted(comparator);
     }
 
