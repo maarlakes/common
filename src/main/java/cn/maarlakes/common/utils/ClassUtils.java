@@ -93,6 +93,19 @@ public final class ClassUtils {
         }
     }
 
+    public static boolean hasClass(@Nonnull String className) {
+        return hasClass(className, ClassUtils.class.getClassLoader());
+    }
+
+    public static boolean hasClass(@Nonnull String className, @Nonnull ClassLoader loader) {
+        try {
+            Class.forName(className, false, loader);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private static boolean matchTypes(Class<?>[] left, Class<?>[] right) {
         if (left.length != right.length) {
             return false;

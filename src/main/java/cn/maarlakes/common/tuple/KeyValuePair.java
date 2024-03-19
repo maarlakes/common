@@ -8,7 +8,7 @@ import java.util.Objects;
 /**
  * @author linjpxc
  */
-public final class KeyValuePair<K, V> implements Serializable {
+public class KeyValuePair<K, V> implements Serializable {
     private static final long serialVersionUID = -52505007629865251L;
 
     @Nonnull
@@ -34,11 +34,11 @@ public final class KeyValuePair<K, V> implements Serializable {
         if (this == object) {
             return true;
         }
-        if (object == null || getClass() != object.getClass()) {
-            return false;
+        if (object instanceof KeyValuePair) {
+            final KeyValuePair<?, ?> that = (KeyValuePair<?, ?>) object;
+            return Objects.equals(key, that.key) && Objects.equals(value, that.value);
         }
-        final KeyValuePair<?, ?> that = (KeyValuePair<?, ?>) object;
-        return Objects.equals(key, that.key) && Objects.equals(value, that.value);
+        return false;
     }
 
     @Override

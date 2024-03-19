@@ -27,7 +27,7 @@ public interface Consumer1<T> extends Consumer<T> {
         }
     }
 
-    void accept0(T t) throws Throwable;
+    void accept0(T t) throws Exception;
 
     default Consumer0 acceptPartially(T t) {
         return () -> this.accept0(t);

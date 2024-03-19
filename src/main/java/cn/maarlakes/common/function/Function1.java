@@ -37,7 +37,7 @@ public interface Function1<T1, R> extends Function<T1, R> {
         }
     }
 
-    R apply0(T1 t1) throws Throwable;
+    R apply0(T1 t1) throws Exception;
 
     @Nonnull
     default Function0<R> acceptPartially(T1 t1) {

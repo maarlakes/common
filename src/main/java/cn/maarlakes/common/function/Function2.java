@@ -38,7 +38,7 @@ public interface Function2<T1, T2, R> extends BiFunction<T1, T2, R> {
         }
     }
 
-    R apply0(T1 t1, T2 t2) throws Throwable;
+    R apply0(T1 t1, T2 t2) throws Exception;
 
     @Nonnull
     default Function1<T2, R> acceptPartially(T1 t1) {

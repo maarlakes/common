@@ -28,7 +28,7 @@ public interface Consumer2<T1, T2> extends BiConsumer<T1, T2> {
         }
     }
 
-    void accept0(T1 t1, T2 t2) throws Throwable;
+    void accept0(T1 t1, T2 t2) throws Exception;
 
     @Nonnull
     default Consumer1<T2> acceptPartially(T1 t1) {

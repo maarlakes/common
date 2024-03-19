@@ -23,7 +23,7 @@ class DefaultLazy<T> implements Lazy<T> {
     }
 
     @Override
-    public T get() {
+    public T apply() throws Exception {
         if (this.value == null) {
             synchronized (this.lock) {
                 if (this.value == null) {

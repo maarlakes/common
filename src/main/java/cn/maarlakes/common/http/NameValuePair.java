@@ -13,4 +13,9 @@ public interface NameValuePair extends Serializable {
     String getName();
 
     String getValue();
+
+    @Nonnull
+    static NameValuePair of(String name, String value) {
+        return new DefaultNameValuePair(name, value);
+    }
 }

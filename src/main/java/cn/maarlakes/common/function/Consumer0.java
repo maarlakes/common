@@ -27,7 +27,7 @@ public interface Consumer0 extends Runnable {
         }
     }
 
-    void accept() throws Throwable;
+    void accept() throws Exception;
 
     @Nonnull
     default Runnable toRunnable() {

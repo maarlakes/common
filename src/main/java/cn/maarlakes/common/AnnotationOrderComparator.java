@@ -1,13 +1,12 @@
 package cn.maarlakes.common;
 
 import cn.maarlakes.common.utils.ClassUtils;
+import cn.maarlakes.common.utils.MethodUtils;
 import jakarta.annotation.Nonnull;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  * @author linjpxc
@@ -51,11 +50,7 @@ public class AnnotationOrderComparator extends OrderedComparator {
         }
         try {
             final Method method = annotation.annotationType().getMethod("value");
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                method.setAccessible(true);
-                return null;
-            });
-            return (Integer) method.invoke(annotation);
+            return MethodUtils.invoke(method, annotation);
         } catch (Exception ignored) {
             return null;
         }

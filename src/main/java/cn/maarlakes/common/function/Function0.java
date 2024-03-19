@@ -35,7 +35,7 @@ public interface Function0<R> extends Supplier<R>, Callable<R> {
         }
     }
 
-    R apply() throws Throwable;
+    R apply() throws Exception;
 
     @Override
     default R call() throws Exception {

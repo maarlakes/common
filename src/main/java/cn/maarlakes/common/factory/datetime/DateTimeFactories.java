@@ -41,6 +41,12 @@ public final class DateTimeFactories {
 
     private static final Comparator<Object> COMPARATOR = OrderedComparator.getInstance().reversed();
 
+    public static final ZoneOffset LOCAL_OFFSET;
+
+    static {
+        LOCAL_OFFSET = ZoneOffset.systemDefault().getRules().getOffset(LocalDateTime.now());
+    }
+
     public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -313,10 +319,10 @@ public final class DateTimeFactories {
             return (LocalDateTime) accessor;
         }
         if (accessor instanceof ZonedDateTime) {
-            return ((ZonedDateTime) accessor).toLocalDateTime();
+            return ((ZonedDateTime) accessor).withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
         }
         if (accessor instanceof OffsetDateTime) {
-            return ((OffsetDateTime) accessor).toLocalDateTime();
+            return ((OffsetDateTime) accessor).withOffsetSameInstant(LOCAL_OFFSET).toLocalDateTime();
         }
         if (accessor instanceof LocalDate) {
             return LocalDateTime.of((LocalDate) accessor, LocalTime.MIN);
@@ -325,13 +331,21 @@ public final class DateTimeFactories {
             return LocalDateTime.of(LocalDate.now(), (LocalTime) accessor);
         }
         if (accessor instanceof OffsetTime) {
-            return LocalDateTime.of(LocalDate.now(), ((OffsetTime) accessor).toLocalTime());
+            return ((OffsetTime) accessor).atDate(LocalDate.now()).withOffsetSameInstant(LOCAL_OFFSET).toLocalDateTime();
         }
         if (accessor instanceof Instant) {
             final Instant instant = (Instant) accessor;
             return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
         }
 
+        final LocalDateTime localDateTime = toLocalDateTime0(accessor);
+        if (accessor.isSupported(OFFSET_SECONDS)) {
+            return localDateTime.atOffset(ZoneOffset.ofTotalSeconds(accessor.get(OFFSET_SECONDS))).withOffsetSameInstant(LOCAL_OFFSET).toLocalDateTime();
+        }
+        return localDateTime;
+    }
+
+    private static LocalDateTime toLocalDateTime0(@Nonnull TemporalAccessor accessor) {
         final LocalDate date = tryToLocalDate(accessor);
         final LocalTime time = tryToLocalTime(accessor);
         if (date != null) {
@@ -419,13 +433,5 @@ public final class DateTimeFactories {
         public int order() {
             return this.counter.get();
         }
-
-//        @Override
-//        public int compareTo(@Nullable ParserWrapper other) {
-//            if (other == null) {
-//                return 1;
-//            }
-//            return Integer.compareUnsigned(other.counter.get(), this.counter.get());
-//        }
     }
 }
