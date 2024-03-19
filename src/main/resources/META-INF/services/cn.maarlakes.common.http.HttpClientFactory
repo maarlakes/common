@@ -1,3 +1,4 @@
-cn.maarlakes.common.http.apache.ApacheHttpClientFactory
+cn.maarlakes.common.http.apache.ApacheAsyncHttpClientFactory
+cn.maarlakes.common.http.apache.ApacheHttpClient4Factory
 cn.maarlakes.common.http.async.AsyncHttpClientFactory
 cn.maarlakes.common.http.ok.OkHttpClientFactory

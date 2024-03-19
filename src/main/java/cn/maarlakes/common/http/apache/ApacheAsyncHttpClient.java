@@ -8,18 +8,15 @@ import org.apache.hc.client5.http.cookie.Cookie;
 import org.apache.hc.client5.http.cookie.CookieStore;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
-import org.apache.hc.client5.http.impl.cookie.BasicClientCookie;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.EndpointDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpResponse;
-import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.support.AbstractAsyncResponseConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncRequestBuilder;
 import org.apache.hc.core5.http.protocol.HttpContext;
-import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.reactor.IOReactorStatus;
 
 import java.io.ByteArrayInputStream;
@@ -56,15 +53,8 @@ public class ApacheAsyncHttpClient implements HttpClient {
     @Override
     public CompletionStage<? extends Response> execute(@Nonnull Request request) {
         try {
-            final URIBuilder uriBuilder = new URIBuilder(request.getUri());
-            if (CollectionUtils.isNotEmpty(request.getQueryParams())) {
-                for (NameValuePair param : request.getQueryParams()) {
-                    uriBuilder.addParameter(param.getName(), param.getValue());
-                }
-            }
-
             final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
-                    .setUri(uriBuilder.build());
+                    .setUri(Apaches.toUri(request));
             if (!request.getHeaders().isEmpty()) {
                 for (Header header : request.getHeaders()) {
                     for (String value : header.getValues()) {
@@ -83,7 +73,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
             if (request.getBody() != null) {
                 try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                     request.getBody().writeTo(out);
-                    builder.setEntity(out.toByteArray(), toApacheContentType(request.getBody().getContentType()));
+                    builder.setEntity(out.toByteArray(), Apaches.toApacheContentType(request.getBody().getContentType()));
                 }
             }
             final HttpContext context = HttpClientContext.create();
@@ -120,33 +110,6 @@ public class ApacheAsyncHttpClient implements HttpClient {
     @Override
     public void close() throws IOException {
         this.client.close();
-    }
-
-    private static Cookie toApacheCookie(@Nonnull cn.maarlakes.common.http.Cookie cookie) {
-        final BasicClientCookie apacheCookie = new BasicClientCookie(cookie.name(), cookie.value());
-        apacheCookie.setDomain(cookie.domain());
-        apacheCookie.setPath(cookie.path());
-        if (cookie.maxAge() > 0L) {
-            apacheCookie.setExpiryDate(new Date(System.currentTimeMillis() + cookie.maxAge()));
-        }
-        apacheCookie.setSecure(cookie.isSecure());
-        apacheCookie.setCreationDate(new Date());
-        apacheCookie.setAttribute("HttpOnly", cookie.isHttpOnly() + "");
-        if (cookie.sameSite() != null) {
-            apacheCookie.setAttribute("SameSite", cookie.sameSite().name());
-        }
-        return apacheCookie;
-    }
-
-    private static org.apache.hc.core5.http.ContentType toApacheContentType(@Nonnull ContentType contentType) {
-        final org.apache.hc.core5.http.ContentType result = org.apache.hc.core5.http.ContentType.create(contentType.getMediaType(), contentType.getCharset());
-        if (CollectionUtils.isNotEmpty(contentType.getParameters())) {
-            return result.withParameters(
-                    contentType.getParameters().stream().map(item -> new BasicNameValuePair(item.getName(), item.getValue()))
-                            .toArray(org.apache.hc.core5.http.NameValuePair[]::new)
-            );
-        }
-        return result;
     }
 
     private static class ResponseAsyncResponseConsumer extends AbstractAsyncResponseConsumer<Response, byte[]> {

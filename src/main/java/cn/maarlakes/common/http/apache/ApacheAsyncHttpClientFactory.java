@@ -5,6 +5,7 @@ import cn.maarlakes.common.http.HttpClient;
 import cn.maarlakes.common.http.HttpClientFactory;
 import cn.maarlakes.common.spi.SpiService;
 import cn.maarlakes.common.utils.ClassUtils;
+import jakarta.annotation.Nonnull;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 
 /**
@@ -12,15 +13,18 @@ import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
  */
 @Order(10)
 @SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
-public class ApacheHttpClientFactory implements HttpClientFactory {
+public class ApacheAsyncHttpClientFactory implements HttpClientFactory {
 
     private static final boolean OK = ClassUtils.hasClass("org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient");
 
+    @Nonnull
     @Override
     public HttpClient createClient() {
-        if (OK) {
-            return new ApacheAsyncHttpClient(HttpAsyncClientBuilder.create().build());
-        }
-        return null;
+        return new ApacheAsyncHttpClient(HttpAsyncClientBuilder.create().build());
+    }
+
+    @Override
+    public boolean isAvailable() {
+        return OK;
     }
 }

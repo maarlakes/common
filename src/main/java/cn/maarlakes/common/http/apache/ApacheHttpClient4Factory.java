@@ -1,4 +1,4 @@
-package cn.maarlakes.common.http.ok;
+package cn.maarlakes.common.http.apache;
 
 import cn.maarlakes.common.Order;
 import cn.maarlakes.common.http.HttpClient;
@@ -10,16 +10,16 @@ import jakarta.annotation.Nonnull;
 /**
  * @author linjpxc
  */
-@Order(20)
+@Order(100)
 @SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
-public class OkHttpClientFactory implements HttpClientFactory {
+public class ApacheHttpClient4Factory implements HttpClientFactory {
 
-    private static final boolean OK = ClassUtils.hasClass("okhttp3.OkHttpClient");
+    private static final boolean OK = ClassUtils.hasClass("org.apache.http.impl.client.CloseableHttpClient");
 
     @Nonnull
     @Override
     public HttpClient createClient() {
-        return new OkAsyncHttpClient();
+        return new ApacheHttpClient4();
     }
 
     @Override

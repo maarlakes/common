@@ -15,20 +15,33 @@ public final class HttpClients {
     }
 
     private static final Supplier<HttpClient> DEFAULT_CLIENT_FACTORY = Lazy.of(HttpClients::defaultClient);
+    private static final HttpClientFactory HTTP_CLIENT_FACTORY;
+
+    static {
+        HTTP_CLIENT_FACTORY = SpiServiceLoader.loadShared(HttpClientFactory.class, HttpClientFactory.class.getClassLoader())
+                .stream().filter(HttpClientFactory::isAvailable).findFirst().orElse(null);
+    }
 
     @Nonnull
     public static HttpClient defaultClient() {
-        for (HttpClientFactory factory : SpiServiceLoader.loadShared(HttpClientFactory.class, HttpClientFactory.class.getClassLoader())) {
-            final HttpClient client = factory.createClient();
-            if (client != null) {
-                return client;
-            }
-        }
-        return new JdkHttpClient();
+        return HTTP_CLIENT_FACTORY == null ? new JdkHttpClient() : HTTP_CLIENT_FACTORY.createClient();
     }
 
     @Nonnull
     public static CompletionStage<? extends Response> execute(@Nonnull Request request) {
         return DEFAULT_CLIENT_FACTORY.get().execute(request);
+    }
+
+    @Nonnull
+    @SuppressWarnings("resource")
+    public static CompletionStage<? extends Response> newExecute(@Nonnull Request request) {
+        final HttpClient client = defaultClient();
+        return client.execute(request)
+                .whenComplete((response, ex) -> {
+                    try {
+                        client.close();
+                    } catch (Exception ignored) {
+                    }
+                });
     }
 }

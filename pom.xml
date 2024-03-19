@@ -47,6 +47,7 @@
         <redisson.version>3.20.0</redisson.version>
         <async-http-client.version>2.12.3</async-http-client.version>
         <apache.httpclient5.version>5.0</apache.httpclient5.version>
+        <apache.httpclient.version>4.5.3</apache.httpclient.version>
         <okhttp.version>4.10.0</okhttp.version>
     </properties>
 
@@ -86,6 +87,12 @@
             <artifactId>httpclient5</artifactId>
             <optional>true</optional>
             <version>${apache.httpclient5.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <optional>true</optional>
+            <version>${apache.httpclient.version}</version>
         </dependency>
 
         <dependency>
