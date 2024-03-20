@@ -51,6 +51,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
 
     @Nonnull
     @Override
+    @SuppressWarnings("DuplicatedCode")
     public CompletionStage<? extends Response> execute(@Nonnull Request request) {
         try {
             final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())

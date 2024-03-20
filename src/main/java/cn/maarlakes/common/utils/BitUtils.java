@@ -1,6 +1,9 @@
 package cn.maarlakes.common.utils;
 
+import jakarta.annotation.Nonnull;
+
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 public final class BitUtils {
 
@@ -331,6 +334,57 @@ public final class BitUtils {
             }
         }
         return builder.toString();
+    }
+
+    public static byte[] toBytes(@Nonnull CharSequence value) {
+        final int length = value.length();
+        final boolean even = isEven(length);
+        final byte[] buffer = createBytes(length, even);
+        final int size = even ? length : length - 1;
+        for (int i = 0; i < size; i += 2) {
+            buffer[i / 2] = (byte) Integer.parseInt(value.subSequence(i, i + 2).toString(), 16);
+        }
+        if (!even) {
+            buffer[buffer.length - 1] = (byte) Integer.parseInt(value.subSequence(size, size + 1).toString(), 16);
+        }
+        return buffer;
+    }
+
+    public static byte[] toBytes(@Nonnull CharSequence value, char separator) {
+        final int length = (int) value.chars().filter(item -> item == separator).count() + 1;
+        final byte[] buffer = new byte[length];
+        int index = 0;
+        StringBuilder hex = new StringBuilder();
+        final int valueCount = value.length();
+        for (int i = 0; i < valueCount; i++) {
+            final char c = value.charAt(i);
+            if (c == separator) {
+                if (hex.length() > 0) {
+                    buffer[index++] = (byte) Integer.parseInt(hex.toString(), 16);
+                }
+                hex = new StringBuilder();
+            } else {
+                hex.append(c);
+            }
+        }
+        if (hex.length() > 0) {
+            buffer[index++] = (byte) Integer.parseInt(hex.toString(), 16);
+        }
+        if (index != buffer.length) {
+            return Arrays.copyOf(buffer, index);
+        }
+        return buffer;
+    }
+
+    private static byte[] createBytes(int length, boolean event) {
+        if (event) {
+            return new byte[length / 2];
+        }
+        return new byte[length / 2 + 1];
+    }
+
+    private static boolean isEven(int value) {
+        return (value & 1) == 0;
     }
 
     private static int getRawByte(byte value) {
