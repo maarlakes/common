@@ -39,7 +39,7 @@ public interface Function0<R> extends Supplier<R>, Callable<R> {
 
     @Override
     default R call() throws Exception {
-        return this.applyUnchecked();
+        return this.apply();
     }
 
     @Override

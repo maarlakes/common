@@ -1,10 +1,12 @@
 package cn.maarlakes.common.token;
 
 import jakarta.annotation.Nonnull;
-import org.redisson.api.RMapCache;
+import org.redisson.api.LocalCachedMapOptions;
+import org.redisson.api.RMap;
 import org.redisson.api.RSemaphore;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.Codec;
+import org.redisson.codec.Kryo5Codec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,40 +20,42 @@ public class RedissonCacheableAppTokenRepository<T extends AppToken<A, V>, A, V>
 
     protected final RedissonClient client;
     protected final String namespace;
-    protected final Codec codec;
+    protected final Codec codec = new Kryo5Codec();
     protected final TokenFactory<T, A, V> tokenFactory;
+    protected final RMap<A, T> mapCache;
 
-    public RedissonCacheableAppTokenRepository(@Nonnull RedissonClient client, @Nonnull String namespace, Codec codec, @Nonnull TokenFactory<T, A, V> tokenFactory) {
+    public RedissonCacheableAppTokenRepository(@Nonnull RedissonClient client, @Nonnull String namespace, @Nonnull TokenFactory<T, A, V> tokenFactory) {
         this.client = client;
         this.namespace = namespace;
-        this.codec = codec;
         this.tokenFactory = tokenFactory;
+
+        this.mapCache = client.getLocalCachedMap(this.namespace, this.codec, LocalCachedMapOptions.defaults());
     }
 
     @Nonnull
     @Override
     public CompletionStage<List<T>> getTokensAsync() {
-        return this.getMapCache().readAllValuesAsync().thenApply(ArrayList::new);
+        return this.mapCache.readAllValuesAsync().thenApply(ArrayList::new);
     }
 
     @Nonnull
     @Override
     public CompletionStage<Void> clearAsync() {
-        this.getMapCache().clear();
-        return CompletableFuture.runAsync(() -> this.getMapCache().clear());
+       this.mapCache.clear();
+       return CompletableFuture.completedFuture(null);
     }
 
     @Nonnull
     @Override
     public CompletionStage<Void> removeAsync(@Nonnull A appId) {
-        return this.getMapCache().removeAsync(appId).thenRun(() -> {
+        return this.mapCache.removeAsync(appId).thenRun(() -> {
         });
     }
 
     @Nonnull
     @Override
     public CompletionStage<Void> removeAsync(@Nonnull T token) {
-        return this.getMapCache().removeAsync(token.getAppId(), token).thenRun(() -> {
+        return this.mapCache.removeAsync(token.getAppId(), token).thenRun(() -> {
         });
     }
 
@@ -59,8 +63,7 @@ public class RedissonCacheableAppTokenRepository<T extends AppToken<A, V>, A, V>
     @Override
     @SuppressWarnings("unchecked")
     public CompletionStage<T> getTokenAsync(@Nonnull A appId) {
-        final RMapCache<A, T> map = this.getMapCache();
-        return map.getAsync(appId)
+        return this.mapCache.getAsync(appId)
                 .thenCompose(token -> {
                     if (token == null) {
                         return (CompletionStage<T>) this.createToken(appId);
@@ -71,14 +74,13 @@ public class RedissonCacheableAppTokenRepository<T extends AppToken<A, V>, A, V>
 
     protected CompletionStage<? extends T> createToken(@Nonnull A appId) {
         final RSemaphore semaphore = this.client.getSemaphore(this.namespace + ":lock:" + appId);
-        final RMapCache<A, T> map = this.getMapCache();
         return semaphore.trySetPermitsAsync(1)
                 .thenCompose(v -> semaphore.acquireAsync())
-                .thenCompose(v -> map.getAsync(appId))
+                .thenCompose(v -> this.mapCache.getAsync(appId))
                 .thenCompose(token -> {
                     if (token == null) {
                         return this.tokenFactory.createToken(appId)
-                                .thenCompose(t -> this.putTokenAsync(map, t).thenApply(tmp -> t));
+                                .thenCompose(t -> this.putTokenAsync(t).thenApply(tmp -> t));
                     } else {
                         return CompletableFuture.completedFuture(token);
                     }
@@ -91,14 +93,7 @@ public class RedissonCacheableAppTokenRepository<T extends AppToken<A, V>, A, V>
                 });
     }
 
-    protected CompletionStage<? extends T> putTokenAsync(@Nonnull RMapCache<A, T> map, @Nonnull T token) {
-        return map.putAsync(token.getAppId(), token);
-    }
-
-    protected RMapCache<A, T> getMapCache() {
-        if (this.codec == null) {
-            return this.client.getMapCache(this.namespace);
-        }
-        return this.client.getMapCache(this.namespace, this.codec);
+    protected CompletionStage<? extends T> putTokenAsync(@Nonnull T token) {
+        return this.mapCache.putAsync(token.getAppId(), token);
     }
 }

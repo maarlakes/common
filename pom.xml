@@ -6,7 +6,7 @@
 
     <groupId>cn.maarlakes</groupId>
     <artifactId>common</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
 
     <licenses>
         <license>
@@ -42,7 +42,7 @@
 
         <jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
         <jnanoid.version>2.0.0</jnanoid.version>
-        <slf4j.version>2.0.6</slf4j.version>
+        <slf4j.version>2.0.0</slf4j.version>
         <fastjson2.version>2.0.31</fastjson2.version>
         <redisson.version>3.20.0</redisson.version>
         <async-http-client.version>2.12.3</async-http-client.version>
@@ -68,6 +68,12 @@
             <groupId>jakarta.annotation</groupId>
             <artifactId>jakarta.annotation-api</artifactId>
             <version>${jakarta.annotation-api.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
         </dependency>
 
         <dependency>

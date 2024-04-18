@@ -2,10 +2,7 @@ package cn.maarlakes.common.utils;
 
 import jakarta.annotation.Nonnull;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 /**
  * @author linjpxc
@@ -14,10 +11,30 @@ public final class Futures {
     private Futures() {
     }
 
+    public static <T> T await(Future<T> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e.getMessage(), e);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException(e.getMessage(), e.getCause());
+        } catch (CancellationException e) {
+            throw new IllegalStateException(e.getMessage(), e);
+        }
+    }
+
     @Nonnull
+    @SuppressWarnings("unchecked")
     public static <T> CompletableFuture<T> toCompletableFuture(@Nonnull Future<T> future) {
         if (future.isDone()) {
             return transformDoneFuture(future);
+        }
+        if (future instanceof CompletableFuture) {
+            return (CompletableFuture<T>) future;
+        }
+        if (future instanceof CompletionStage) {
+            return ((CompletionStage<T>) future).toCompletableFuture();
         }
         final CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             try {

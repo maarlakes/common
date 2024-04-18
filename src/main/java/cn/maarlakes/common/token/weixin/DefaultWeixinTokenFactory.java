@@ -1,63 +1,41 @@
 package cn.maarlakes.common.token.weixin;
 
-import cn.maarlakes.common.token.Tokens;
-import cn.maarlakes.common.utils.PathUtils;
-import cn.maarlakes.common.utils.StreamUtils;
+import cn.maarlakes.common.http.HttpClient;
+import cn.maarlakes.common.http.HttpClients;
+import cn.maarlakes.common.http.Request;
 import jakarta.annotation.Nonnull;
-
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.time.LocalDateTime;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 
 /**
  * @author linjpxc
  */
-public class DefaultWeixinTokenFactory implements WeixinTokenFactory {
+public class DefaultWeixinTokenFactory extends AbstractWeixinTokenFactory {
 
     private final WeixinSecretMapper secretMapper;
-    private final Executor executor;
-    private final String url;
 
     public DefaultWeixinTokenFactory(@Nonnull WeixinSecretMapper mapper) {
-        this(mapper, ForkJoinPool.commonPool());
+        this(mapper, HttpClients.defaultClient());
     }
 
-    public DefaultWeixinTokenFactory(@Nonnull WeixinSecretMapper mapper, @Nonnull Executor executor) {
-        this(mapper, executor, "https://api.weixin.qq.com/cgi-bin/token?");
+    public DefaultWeixinTokenFactory(@Nonnull WeixinSecretMapper mapper, @Nonnull HttpClient httpClient) {
+        this(mapper, httpClient, "https://api.weixin.qq.com/cgi-bin/token");
     }
 
     public DefaultWeixinTokenFactory(@Nonnull WeixinSecretMapper mapper, @Nonnull String tokenUrl) {
-        this(mapper, ForkJoinPool.commonPool(), tokenUrl);
+        this(mapper, HttpClients.defaultClient(), tokenUrl);
     }
 
-    public DefaultWeixinTokenFactory(@Nonnull WeixinSecretMapper mapper, @Nonnull Executor executor, @Nonnull String tokenUrl) {
+    public DefaultWeixinTokenFactory(@Nonnull WeixinSecretMapper mapper, @Nonnull HttpClient httpClient, @Nonnull String tokenUrl) {
+        super(httpClient, tokenUrl);
         this.secretMapper = mapper;
-        this.executor = executor;
-        this.url = tokenUrl;
     }
 
-    @Nonnull
     @Override
-    public CompletionStage<WeixinToken> createToken(@Nonnull String appId) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                final LocalDateTime now = LocalDateTime.now();
-                final URL url = new URL(PathUtils.combineWith("?", this.url, "grant_type=client_credential&appid=" + appId + "&secret=" + this.secretMapper.getSecret(appId)));
-                final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("POST");
-                connection.connect();
-                try (InputStream stream = connection.getInputStream()) {
-                    final String json = StreamUtils.readAllText(stream);
-                    return WeixinTokenUtils.toWeixinToken(json, appId, now);
-                }
-            } catch (Exception e) {
-                throw Tokens.newTokenException(e);
-            }
-        }, this.executor);
+    protected Request buildRequest(@Nonnull String appId) {
+        return Request.builder()
+                .post(this.url)
+                .addQueryParam("grant_type", "client_credential")
+                .addQueryParam("appid", appId)
+                .addQueryParam("secret", this.secretMapper.getSecret(appId))
+                .build();
     }
 }
