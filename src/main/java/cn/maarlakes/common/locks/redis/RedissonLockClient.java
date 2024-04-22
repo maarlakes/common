@@ -1,5 +1,7 @@
-package cn.maarlakes.common.locks;
+package cn.maarlakes.common.locks.redis;
 
+import cn.maarlakes.common.locks.LockClient;
+import cn.maarlakes.common.locks.LockContext;
 import jakarta.annotation.Nonnull;
 import org.redisson.api.RedissonClient;
 
@@ -8,11 +10,11 @@ import java.util.concurrent.locks.Lock;
 /**
  * @author linjpxc
  */
-public class RedissonLockFactory implements LockFactory {
+public class RedissonLockClient implements LockClient {
 
     private final RedissonClient redissonClient;
 
-    public RedissonLockFactory(@Nonnull RedissonClient redissonClient) {
+    public RedissonLockClient(@Nonnull RedissonClient redissonClient) {
         this.redissonClient = redissonClient;
     }
 

@@ -7,7 +7,7 @@ import java.util.concurrent.locks.Lock;
 /**
  * @author linjpxc
  */
-public interface LockFactory {
+public interface LockClient {
 
     @Nonnull
     Lock createLock(@Nonnull LockContext context);

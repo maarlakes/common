@@ -2,7 +2,7 @@ package cn.maarlakes.common.task;
 
 import cn.maarlakes.common.factory.bean.BeanFactories;
 import cn.maarlakes.common.locks.LockContext;
-import cn.maarlakes.common.locks.LockFactory;
+import cn.maarlakes.common.locks.LockClient;
 import cn.maarlakes.common.utils.PointcutUtils;
 import jakarta.annotation.Nonnull;
 import org.aopalliance.aop.Advice;
@@ -29,10 +29,10 @@ public class SerialTaskMethodInterceptor implements MethodInterceptor, PointcutA
     private static final Logger log = LoggerFactory.getLogger(SerialTaskMethodInterceptor.class);
 
     private final Pointcut pointcut;
-    private final LockFactory lockFactory;
+    private final LockClient lockClient;
 
-    public SerialTaskMethodInterceptor(@Nonnull LockFactory lockFactory) {
-        this.lockFactory = Objects.requireNonNull(lockFactory);
+    public SerialTaskMethodInterceptor(@Nonnull LockClient lockClient) {
+        this.lockClient = Objects.requireNonNull(lockClient);
         this.pointcut = PointcutUtils.forAnnotations(SerialTask.class);
     }
 
@@ -43,7 +43,7 @@ public class SerialTaskMethodInterceptor implements MethodInterceptor, PointcutA
 
         final String taskName = getTaskName(serialTask, invocation.getMethod());
 
-        final Lock lock = this.lockFactory.createLock(LockContext.create(taskName, serialTask.fair()));
+        final Lock lock = this.lockClient.createLock(LockContext.create(taskName, serialTask.fair()));
         if (serialTask.timeout() > 0) {
             if (!lock.tryLock(serialTask.timeout(), TimeUnit.MILLISECONDS)) {
                 return getSerialTaskExecuteStrategy(serialTask.strategy()).execute(taskName, invocation, lock);

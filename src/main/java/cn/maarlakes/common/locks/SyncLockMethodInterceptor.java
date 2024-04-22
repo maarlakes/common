@@ -25,10 +25,10 @@ import java.util.concurrent.locks.Lock;
 public class SyncLockMethodInterceptor implements MethodInterceptor, PointcutAdvisor, AopInfrastructureBean {
     private final ParameterNameDiscoverer parameterNameDiscoverer = new StandardReflectionParameterNameDiscoverer();
     private final Pointcut pointcut;
-    private final LockFactory lockFactory;
+    private final LockClient lockClient;
 
-    public SyncLockMethodInterceptor(@Nonnull LockFactory lockFactory) {
-        this.lockFactory = Objects.requireNonNull(lockFactory);
+    public SyncLockMethodInterceptor(@Nonnull LockClient lockClient) {
+        this.lockClient = Objects.requireNonNull(lockClient);
         this.pointcut = PointcutUtils.forAnnotations(SyncLock.class);
     }
 
@@ -50,7 +50,7 @@ public class SyncLockMethodInterceptor implements MethodInterceptor, PointcutAdv
         if (value == null || value.isEmpty()) {
             value = "'" + invocation.getMethod() + "'";
         }
-        final Lock lock = this.lockFactory.createLock(ExpressionLockContext.create(context, value, syncLock.fair()));
+        final Lock lock = this.lockClient.createLock(ExpressionLockContext.create(context, value, syncLock.fair()));
         if (syncLock.timeout() > 0) {
             if (!lock.tryLock(syncLock.timeout(), TimeUnit.MILLISECONDS)) {
                 throw new SyncLockTimeoutException("method: " + invocation.getMethod());

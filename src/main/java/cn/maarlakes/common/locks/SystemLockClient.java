@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * @author linjpxc
  */
-public class SystemLockFactory implements LockFactory {
+public class SystemLockClient implements LockClient {
 
     protected final ConcurrentMap<String, Lock> locks = new ConcurrentHashMap<>();
 
