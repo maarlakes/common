@@ -4,16 +4,17 @@ import cn.maarlakes.common.function.Function0;
 import cn.maarlakes.common.http.Request;
 import cn.maarlakes.common.http.Response;
 import cn.maarlakes.common.http.*;
+import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.utils.CollectionUtils;
 import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
 import okhttp3.Cookie;
+import okhttp3.RequestBody;
 import okhttp3.*;
 import okhttp3.internal.connection.Exchange;
 import okhttp3.internal.connection.RealConnection;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketAddress;
@@ -132,25 +133,39 @@ public class OkAsyncHttpClient implements HttpClient {
     }
 
     private static RequestBody toRequestBody(@Nonnull Request request) throws Exception {
-        final Request.Body body = request.getBody();
-        if (body == null) {
-            final List<? extends NameValuePair> params = request.getFormParams();
-            if (CollectionUtils.isNotEmpty(params)) {
-                final FormBody.Builder builder = new FormBody.Builder();
-                for (NameValuePair param : params) {
-                    builder.add(param.getName(), param.getValue());
+        final cn.maarlakes.common.http.RequestBody<?> body = request.getBody();
+        if (body != null) {
+            if (body instanceof cn.maarlakes.common.http.body.multipart.MultipartBody) {
+                final cn.maarlakes.common.http.body.multipart.MultipartBody multipartBody = (cn.maarlakes.common.http.body.multipart.MultipartBody) request.getBody();
+                if (CollectionUtils.isNotEmpty(multipartBody.getContent())) {
+                    final MultipartBody.Builder builder = new MultipartBody.Builder();
+                    builder.setType(Objects.requireNonNull(MediaType.parse(ContentTypes.toString(multipartBody.getContentType()))));
+                    for (MultipartPart<?> part : multipartBody.getContent()) {
+                        final Headers.Builder headers = new Headers.Builder();
+                        if (!part.getHeaders().isEmpty()) {
+                            for (Header header : part.getHeaders()) {
+                                for (String value : header.getValues()) {
+                                    headers.add(header.getName(), value);
+                                }
+                            }
+                        }
+                        builder.addFormDataPart(part.getName(), part.getFilename(), new ContentRequestBody(part));
+                    }
+                    return builder.build();
                 }
-                return builder.build();
+            } else {
+                return new ContentRequestBody(body);
             }
-            if ("get".equalsIgnoreCase(request.getMethod().name())) {
-                return null;
+        }
+
+        if (CollectionUtils.isNotEmpty(request.getFormParams())) {
+            final FormBody.Builder builder = new FormBody.Builder();
+            for (NameValuePair param : request.getFormParams()) {
+                builder.add(param.getName(), param.getValue());
             }
-            return RequestBody.create(new byte[0]);
+            return builder.build();
         }
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            body.writeTo(out);
-            return RequestBody.create(out.toByteArray(), MediaType.parse(body.getContentType().toHeader().get()));
-        }
+        return null;
     }
 
     @Override

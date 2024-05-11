@@ -1,12 +1,16 @@
 package cn.maarlakes.common.http.async;
 
 import cn.maarlakes.common.http.*;
+import cn.maarlakes.common.http.body.multipart.FilePart;
+import cn.maarlakes.common.http.body.multipart.MultipartBody;
+import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.utils.CollectionUtils;
 import io.netty.handler.codec.http.cookie.CookieHeaderNames;
 import jakarta.annotation.Nonnull;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.Dsl;
 import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.request.body.multipart.InputStreamPart;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,9 +75,32 @@ public class NettyAsyncHttpClient implements HttpClient {
                 builder.addFormParam(param.getName(), param.getValue());
             }
         }
+
         if (request.getBody() != null) {
-            builder.setBody(request.getBody().getContent());
-            builder.setHeader(request.getBody().getContentTypeHeader().getName(), request.getBody().getContentTypeHeader().getValues());
+            if (request.getBody() instanceof MultipartBody) {
+                final MultipartBody multipartBody = (MultipartBody) request.getBody();
+                if (CollectionUtils.isNotEmpty(multipartBody.getContent())) {
+                    for (MultipartPart<?> part : multipartBody.getContent()) {
+                        final Header contentId = part.getHeaders().getHeader("Content-ID");
+                        final Header contentTransferEncoding = part.getHeaders().getHeader("Content-Transfer-Encoding");
+                        if (part instanceof FilePart) {
+                            builder.addBodyPart(new org.asynchttpclient.request.body.multipart.FilePart(
+                                    part.getName(), ((FilePart) part).getContent(), part.getContentType() == null ? null : ContentTypes.toString(part.getContentType()),
+                                    part.getCharset(), part.getFilename(), contentId == null ? null : contentId.get(),
+                                    contentTransferEncoding == null ? null : contentTransferEncoding.get()));
+                        } else {
+                            builder.addBodyPart(new InputStreamPart(
+                                    part.getName(), part.getContentStream(), part.getFilename(), -1,
+                                    part.getContentType() == null ? null : ContentTypes.toString(part.getContentType()),
+                                    part.getCharset(), contentId == null ? null : contentId.get(),
+                                    contentTransferEncoding == null ? null : contentTransferEncoding.get()));
+                        }
+                    }
+                }
+            } else {
+                builder.setBody(request.getBody().getContentStream());
+                builder.setHeader(request.getBody().getContentTypeHeader().getName(), request.getBody().getContentTypeHeader().getValues());
+            }
         }
         return builder;
     }

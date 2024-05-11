@@ -1,5 +1,7 @@
 package cn.maarlakes.common.http;
 
+import cn.maarlakes.common.http.body.BodyUtils;
+import cn.maarlakes.common.http.body.UrlEncodedFormEntityBody;
 import cn.maarlakes.common.utils.CollectionUtils;
 import cn.maarlakes.common.utils.StreamUtils;
 import jakarta.annotation.Nonnull;
@@ -52,7 +54,7 @@ public class JdkHttpClient implements HttpClient {
                 if (CollectionUtils.isNotEmpty(request.getCookies())) {
                     connection.setRequestProperty("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
                 }
-                Request.Body body = request.getBody();
+                RequestBody<?> body = request.getBody();
                 if (body == null && CollectionUtils.isNotEmpty(request.getFormParams())) {
                     body = new UrlEncodedFormEntityBody(request.getFormParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8"));
                 }
@@ -96,11 +98,11 @@ public class JdkHttpClient implements HttpClient {
         final String url = request.getUri().toString();
         if (url.contains("?")) {
             if (url.endsWith("&")) {
-                return new URL(url + RequestParams.format(request.getQueryParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8")));
+                return new URL(url + BodyUtils.formatParams(request.getQueryParams()));
             }
-            return new URL(url + "&" + RequestParams.format(request.getQueryParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8")));
+            return new URL(url + "&" + BodyUtils.formatParams(request.getQueryParams()));
         }
-        return new URL(url + "?" + RequestParams.format(request.getQueryParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8")));
+        return new URL(url + "?" + BodyUtils.formatParams(request.getQueryParams()));
     }
 
     private HttpHeaders toHeaders(final Map<String, List<String>> map) {

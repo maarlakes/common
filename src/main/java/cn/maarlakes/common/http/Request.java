@@ -1,10 +1,10 @@
 package cn.maarlakes.common.http;
 
+import cn.maarlakes.common.http.body.DefaultTextBody;
+import cn.maarlakes.common.http.body.JsonBody;
+import cn.maarlakes.common.http.body.multipart.MultipartBody;
 import jakarta.annotation.Nonnull;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.Serializable;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.util.List;
@@ -32,31 +32,12 @@ public interface Request {
 
     List<? extends NameValuePair> getFormParams();
 
-    Body getBody();
+    RequestBody<?> getBody();
 
     @Nonnull
     static Builder builder() {
         return new DefaultRequestBuilder();
     }
-
-    interface Body extends Serializable {
-
-        int getContentLength();
-
-        @Nonnull
-        ContentType getContentType();
-
-        default Header getContentTypeHeader() {
-            return this.getContentType().toHeader();
-        }
-
-        Header getContentEncoding();
-
-        InputStream getContent();
-
-        void writeTo(@Nonnull OutputStream stream);
-    }
-
 
     interface Builder {
 
@@ -140,26 +121,56 @@ public interface Request {
         Builder addFormParam(@Nonnull NameValuePair param);
 
         @Nonnull
-        Builder body(@Nonnull Body body);
+        Builder body(@Nonnull RequestBody<?> body);
+
+        @Nonnull
+        default Builder multipartBody(@Nonnull MultipartBody.Builder builder) {
+            return this.multipartBody(builder.build());
+        }
+
+        @Nonnull
+        default Builder multipartBody(@Nonnull MultipartBody body) {
+            return this.body(body);
+        }
 
         @Nonnull
         default Builder text(@Nonnull String text) {
-            return this.body(new StringBody(text, ContentType.TEXT_PLAIN, null));
+            return this.body(new DefaultTextBody(text, ContentType.TEXT_PLAIN));
         }
 
         @Nonnull
         default Builder text(@Nonnull String text, String charset) {
-            return this.body(new StringBody(text, ContentType.TEXT_PLAIN.withCharset(charset)));
+            return this.body(new DefaultTextBody(text, ContentType.TEXT_PLAIN.withCharset(charset)));
         }
 
         @Nonnull
-        default Builder json(@Nonnull String son) {
-            return this.body(new StringBody(son, ContentType.APPLICATION_JSON));
+        default Builder json(@Nonnull String json) {
+            return this.body(new JsonBody(json));
         }
 
         @Nonnull
-        default Builder json(@Nonnull String son, String charset) {
-            return this.body(new StringBody(son, ContentType.APPLICATION_JSON.withCharset(charset)));
+        default Builder json(@Nonnull String json, String charset) {
+            return this.body(new JsonBody(json, charset));
+        }
+
+        @Nonnull
+        default Builder json(@Nonnull String json, Charset charset) {
+            return this.body(new JsonBody(json, charset));
+        }
+
+        @Nonnull
+        default Builder json(@Nonnull Object obj) {
+            return this.body(new JsonBody(obj));
+        }
+
+        @Nonnull
+        default Builder json(@Nonnull Object obj, Charset charset) {
+            return this.body(new JsonBody(obj, charset));
+        }
+
+        @Nonnull
+        default Builder json(@Nonnull Object obj, String charset) {
+            return this.body(new JsonBody(obj, charset));
         }
 
         @Nonnull

@@ -21,7 +21,7 @@ class DefaultRequestBuilder implements Request.Builder {
     private HttpMethod method;
     private URI uri;
     private Charset charset;
-    private Request.Body body;
+    private RequestBody<?> body;
 
     @Nonnull
     @Override
@@ -81,7 +81,7 @@ class DefaultRequestBuilder implements Request.Builder {
 
     @Nonnull
     @Override
-    public Request.Builder body(@Nonnull Request.Body body) {
+    public Request.Builder body(@Nonnull RequestBody<?> body) {
         this.body = body;
         return this;
     }
@@ -135,7 +135,7 @@ class DefaultRequestBuilder implements Request.Builder {
         }
 
         @Override
-        public Body getBody() {
+        public RequestBody<?> getBody() {
             return body;
         }
     }

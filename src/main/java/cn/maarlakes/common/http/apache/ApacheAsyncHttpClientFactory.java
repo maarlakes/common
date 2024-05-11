@@ -8,6 +8,8 @@ import cn.maarlakes.common.utils.ClassUtils;
 import jakarta.annotation.Nonnull;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 
+import java.util.concurrent.Executor;
+
 /**
  * @author linjpxc
  */
@@ -20,6 +22,12 @@ public class ApacheAsyncHttpClientFactory implements HttpClientFactory {
     @Nonnull
     @Override
     public HttpClient createClient() {
+        return new ApacheAsyncHttpClient(HttpAsyncClientBuilder.create().build());
+    }
+
+    @Nonnull
+    @Override
+    public HttpClient createClient(@Nonnull Executor executor) {
         return new ApacheAsyncHttpClient(HttpAsyncClientBuilder.create().build());
     }
 

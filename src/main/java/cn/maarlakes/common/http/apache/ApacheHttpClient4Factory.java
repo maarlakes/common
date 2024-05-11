@@ -7,6 +7,8 @@ import cn.maarlakes.common.spi.SpiService;
 import cn.maarlakes.common.utils.ClassUtils;
 import jakarta.annotation.Nonnull;
 
+import java.util.concurrent.Executor;
+
 /**
  * @author linjpxc
  */
@@ -20,6 +22,12 @@ public class ApacheHttpClient4Factory implements HttpClientFactory {
     @Override
     public HttpClient createClient() {
         return new ApacheHttpClient4();
+    }
+
+    @Nonnull
+    @Override
+    public HttpClient createClient(@Nonnull Executor executor) {
+        return new ApacheHttpClient4(executor);
     }
 
     @Override

@@ -2,6 +2,9 @@ package cn.maarlakes.common.http.apache;
 
 import cn.maarlakes.common.factory.datetime.DateTimeFactories;
 import cn.maarlakes.common.http.*;
+import cn.maarlakes.common.http.body.multipart.FilePart;
+import cn.maarlakes.common.http.body.multipart.MultipartBody;
+import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.utils.CollectionUtils;
 import jakarta.annotation.Nonnull;
 import org.apache.http.HttpEntity;
@@ -13,6 +16,11 @@ import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.InputStreamEntity;
+import org.apache.http.entity.mime.FormBodyPartBuilder;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.apache.http.entity.mime.content.ContentBody;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.InputStreamBody;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -65,27 +73,20 @@ public class ApacheHttpClient4 implements HttpClient {
             try {
                 final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
                         .setUri(toUri(request));
-                if (!request.getHeaders().isEmpty()) {
-                    for (Header header : request.getHeaders()) {
-                        for (String value : header.getValues()) {
-                            builder.addHeader(header.getName(), value);
-                        }
-                    }
-                }
+                settingHeader(builder, request);
                 if (request.getCharset() != null) {
                     builder.setCharset(request.getCharset());
                 }
-                if (CollectionUtils.isNotEmpty(request.getFormParams())) {
-                    for (NameValuePair param : request.getFormParams()) {
-                        builder.addParameter(param.getName(), param.getValue());
-                    }
-                }
+                settingFormParams(builder, request);
                 if (request.getBody() != null) {
-                    final InputStream content = request.getBody().getContent();
-                    if (content != null) {
-                        builder.setEntity(new InputStreamEntity(content, toApacheContentType(request.getBody().getContentType())));
+                    if (request.getBody() instanceof MultipartBody) {
+                        settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
+                    } else {
+                        final InputStream content = request.getBody().getContentStream();
+                        if (content != null) {
+                            builder.setEntity(new InputStreamEntity(content, toApacheContentType(request.getBody().getContentType())));
+                        }
                     }
-
                 }
                 final HttpContext context = HttpClientContext.create();
                 context.setAttribute(HttpClientContext.COOKIE_STORE, new BasicCookieStore());
@@ -108,16 +109,6 @@ public class ApacheHttpClient4 implements HttpClient {
         }
     }
 
-    @Nonnull
-    public static URI toUri(@Nonnull Request request) throws URISyntaxException {
-        final URIBuilder builder = new URIBuilder(request.getUri());
-        if (CollectionUtils.isNotEmpty(request.getQueryParams())) {
-            for (NameValuePair param : request.getQueryParams()) {
-                builder.addParameter(param.getName(), param.getValue());
-            }
-        }
-        return builder.build();
-    }
 
     public static org.apache.http.entity.ContentType toApacheContentType(@Nonnull ContentType contentType) {
         final org.apache.http.entity.ContentType result = org.apache.http.entity.ContentType.create(contentType.getMediaType(), contentType.getCharset());
@@ -128,6 +119,74 @@ public class ApacheHttpClient4 implements HttpClient {
             );
         }
         return result;
+    }
+
+    @Nonnull
+    private static URI toUri(@Nonnull Request request) throws URISyntaxException {
+        final URIBuilder builder = new URIBuilder(request.getUri());
+        if (CollectionUtils.isNotEmpty(request.getQueryParams())) {
+            for (NameValuePair param : request.getQueryParams()) {
+                builder.addParameter(param.getName(), param.getValue());
+            }
+        }
+        return builder.build();
+    }
+
+    @SuppressWarnings("DuplicatedCode")
+    private static void settingMultipart(@Nonnull RequestBuilder builder, @Nonnull MultipartBody body, Charset charset) {
+        if (CollectionUtils.isNotEmpty(body.getContent())) {
+            final MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
+            multipartEntityBuilder.setContentType(org.apache.http.entity.ContentType.parse(ContentTypes.toString(body.getContentType())));
+            for (MultipartPart<?> part : body.getContent()) {
+                ContentBody contentBody;
+                if (part instanceof FilePart) {
+                    if (part.getContentType() == null) {
+                        contentBody = new FileBody(((FilePart) part).getContent());
+                    } else {
+                        contentBody = new FileBody(((FilePart) part).getContent(), toApacheContentType(part.getContentType()), part.getFilename());
+                    }
+                } else {
+                    if (part.getContentType() == null) {
+                        contentBody = new InputStreamBody(part.getContentStream(), part.getFilename());
+                    } else {
+                        contentBody = new InputStreamBody(part.getContentStream(), toApacheContentType(part.getContentType()), part.getFilename());
+                    }
+                }
+                final FormBodyPartBuilder partBuilder = FormBodyPartBuilder.create(part.getName(), contentBody);
+                if (!part.getHeaders().isEmpty()) {
+                    for (Header header : part.getHeaders()) {
+                        for (String s : header.getValues()) {
+                            if (s != null) {
+                                partBuilder.addField(header.getName(), s);
+                            }
+                        }
+                    }
+                }
+                multipartEntityBuilder.addPart(partBuilder.build());
+            }
+            if (charset != null) {
+                multipartEntityBuilder.setCharset(charset);
+            }
+            builder.setEntity(multipartEntityBuilder.build());
+        }
+    }
+
+    private static void settingFormParams(@Nonnull RequestBuilder builder, @Nonnull Request request) {
+        if (CollectionUtils.isNotEmpty(request.getFormParams())) {
+            for (NameValuePair param : request.getFormParams()) {
+                builder.addParameter(param.getName(), param.getValue());
+            }
+        }
+    }
+
+    private static void settingHeader(@Nonnull RequestBuilder builder, @Nonnull Request request) {
+        if (!request.getHeaders().isEmpty()) {
+            for (Header header : request.getHeaders()) {
+                for (String value : header.getValues()) {
+                    builder.addHeader(header.getName(), value);
+                }
+            }
+        }
     }
 
     private static class DefaultResponse implements Response {

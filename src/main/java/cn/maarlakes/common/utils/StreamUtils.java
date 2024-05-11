@@ -2,10 +2,7 @@ package cn.maarlakes.common.utils;
 
 import jakarta.annotation.Nonnull;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
@@ -35,15 +32,23 @@ public final class StreamUtils {
         return builder.toString();
     }
 
+    public static int copy(@Nonnull InputStream in, @Nonnull OutputStream out) throws IOException {
+        int byteCount = 0;
+        int bytesRead;
+        final byte[] buffer = new byte[BUFFER_SIZE];
+        while ((bytesRead = in.read(buffer)) >= 0) {
+            out.write(buffer, 0, bytesRead);
+            byteCount += bytesRead;
+        }
+
+        out.flush();
+        return byteCount;
+    }
+
     @Nonnull
     public static byte[] readAllBytes(@Nonnull InputStream stream) throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[BUFFER_SIZE];
-            int bytesRead;
-            while ((bytesRead = stream.read(buffer)) >= 0) {
-                out.write(buffer, 0, bytesRead);
-            }
-            out.flush();
+            copy(stream, out);
             return out.toByteArray();
         }
     }

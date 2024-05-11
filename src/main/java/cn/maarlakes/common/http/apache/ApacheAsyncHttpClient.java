@@ -1,11 +1,18 @@
 package cn.maarlakes.common.http.apache;
 
 import cn.maarlakes.common.http.*;
+import cn.maarlakes.common.http.body.multipart.FilePart;
+import cn.maarlakes.common.http.body.multipart.MultipartBody;
+import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.utils.CollectionUtils;
 import jakarta.annotation.Nonnull;
 import org.apache.hc.client5.http.cookie.BasicCookieStore;
 import org.apache.hc.client5.http.cookie.Cookie;
 import org.apache.hc.client5.http.cookie.CookieStore;
+import org.apache.hc.client5.http.entity.mime.FileBody;
+import org.apache.hc.client5.http.entity.mime.FormBodyPartBuilder;
+import org.apache.hc.client5.http.entity.mime.InputStreamBody;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
@@ -20,7 +27,6 @@ import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.reactor.IOReactorStatus;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketAddress;
@@ -56,34 +62,25 @@ public class ApacheAsyncHttpClient implements HttpClient {
         try {
             final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
                     .setUri(Apaches.toUri(request));
-            if (!request.getHeaders().isEmpty()) {
-                for (Header header : request.getHeaders()) {
-                    for (String value : header.getValues()) {
-                        builder.addHeader(header.getName(), value);
-                    }
-                }
-            }
+            settingHeader(builder, request);
             if (request.getCharset() != null) {
                 builder.setCharset(request.getCharset());
             }
-            if (CollectionUtils.isNotEmpty(request.getFormParams())) {
-                for (NameValuePair param : request.getFormParams()) {
-                    builder.addParameter(param.getName(), param.getValue());
-                }
-            }
+            settingFormParams(builder, request);
             if (request.getBody() != null) {
-                try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                    request.getBody().writeTo(out);
-                    builder.setEntity(out.toByteArray(), Apaches.toApacheContentType(request.getBody().getContentType()));
+                if (request.getBody() instanceof MultipartBody) {
+                    settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
+                } else {
+                    builder.setEntity(new ContentAsyncEntityProducer(request.getBody()));
                 }
             }
+
             final HttpContext context = HttpClientContext.create();
             context.setAttribute(HttpClientContext.COOKIE_STORE, new BasicCookieStore());
             if (CollectionUtils.isNotEmpty(request.getCookies())) {
                 builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
             }
             final CompletableFuture<Response> future = new CompletableFuture<>();
-
             this.client.execute(builder.build(), new ResponseAsyncResponseConsumer(request.getUri(), context), context, new FutureCallback<Response>() {
                 @Override
                 public void completed(Response response) {
@@ -111,6 +108,63 @@ public class ApacheAsyncHttpClient implements HttpClient {
     @Override
     public void close() throws IOException {
         this.client.close();
+    }
+
+    private static void settingFormParams(@Nonnull AsyncRequestBuilder builder, @Nonnull Request request) {
+        if (CollectionUtils.isNotEmpty(request.getFormParams())) {
+            for (NameValuePair param : request.getFormParams()) {
+                builder.addParameter(param.getName(), param.getValue());
+            }
+        }
+    }
+
+    private static void settingHeader(@Nonnull AsyncRequestBuilder builder, @Nonnull Request request) {
+        if (!request.getHeaders().isEmpty()) {
+            for (Header header : request.getHeaders()) {
+                for (String value : header.getValues()) {
+                    builder.addHeader(header.getName(), value);
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("DuplicatedCode")
+    private static void settingMultipart(@Nonnull AsyncRequestBuilder builder, @Nonnull MultipartBody body, Charset charset) {
+        if (CollectionUtils.isNotEmpty(body.getContent())) {
+            final MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
+            multipartEntityBuilder.setContentType(Apaches.toApacheContentType(body.getContentType()));
+            for (MultipartPart<?> part : body.getContent()) {
+                org.apache.hc.client5.http.entity.mime.ContentBody contentBody;
+                if (part instanceof FilePart) {
+                    if (part.getContentType() == null) {
+                        contentBody = new FileBody(((FilePart) part).getContent());
+                    } else {
+                        contentBody = new FileBody(((FilePart) part).getContent(), Apaches.toApacheContentType(part.getContentType()), part.getFilename());
+                    }
+                } else {
+                    if (part.getContentType() == null) {
+                        contentBody = new InputStreamBody(part.getContentStream(), part.getFilename());
+                    } else {
+                        contentBody = new InputStreamBody(part.getContentStream(), Apaches.toApacheContentType(part.getContentType()), part.getFilename());
+                    }
+                }
+                final FormBodyPartBuilder partBuilder = FormBodyPartBuilder.create(part.getName(), contentBody);
+                if (!part.getHeaders().isEmpty()) {
+                    for (Header header : part.getHeaders()) {
+                        for (String s : header.getValues()) {
+                            if (s != null) {
+                                partBuilder.addField(header.getName(), s);
+                            }
+                        }
+                    }
+                }
+                multipartEntityBuilder.addPart(partBuilder.build());
+            }
+            if (charset != null) {
+                multipartEntityBuilder.setCharset(charset);
+            }
+            builder.setEntity(new HttpEntityAsyncEntityProducer(multipartEntityBuilder.build()));
+        }
     }
 
     private static class ResponseAsyncResponseConsumer extends AbstractAsyncResponseConsumer<Response, byte[]> {

@@ -76,7 +76,7 @@ public interface ContentType extends Serializable {
 
     @Nonnull
     default Header toHeader() {
-        return new DefaultHeader(HttpHeaderNames.CONTENT_TYPE, this.getMediaType() + ";" + ContentTypes.contentTypeHeadValue(this));
+        return new DefaultHeader(HttpHeaderNames.CONTENT_TYPE, ContentTypes.toString(this));
     }
 
     @Nonnull

@@ -5,12 +5,18 @@ import cn.maarlakes.common.http.HttpClient;
 import cn.maarlakes.common.http.HttpClientFactory;
 import cn.maarlakes.common.spi.SpiService;
 import cn.maarlakes.common.utils.ClassUtils;
+import io.netty.channel.nio.NioEventLoopGroup;
 import jakarta.annotation.Nonnull;
+import org.asynchttpclient.DefaultAsyncHttpClientConfig;
+import org.asynchttpclient.Dsl;
+
+import java.nio.channels.spi.SelectorProvider;
+import java.util.concurrent.Executor;
 
 /**
  * @author linjpxc
  */
-@Order
+@Order(Integer.MAX_VALUE)
 @SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class AsyncHttpClientFactory implements HttpClientFactory {
 
@@ -20,6 +26,14 @@ public class AsyncHttpClientFactory implements HttpClientFactory {
     @Override
     public HttpClient createClient() {
         return new NettyAsyncHttpClient();
+    }
+
+    @Nonnull
+    @Override
+    public HttpClient createClient(@Nonnull Executor executor) {
+        final DefaultAsyncHttpClientConfig.Builder builder = new DefaultAsyncHttpClientConfig.Builder();
+        builder.setEventLoopGroup(new NioEventLoopGroup(0, executor, SelectorProvider.provider()));
+        return new NettyAsyncHttpClient(Dsl.asyncHttpClient(builder));
     }
 
     @Override
