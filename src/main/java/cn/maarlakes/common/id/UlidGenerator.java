@@ -60,11 +60,12 @@ public final class UlidGenerator implements IdGenerator {
         if (now == this.lastTimestamp) {
             boolean carry = true;
             for (int i = ENTROPY_LENGTH - 1; i >= 0; i--) {
-                if (carry) {
-                    byte work = this.lastEntropy[i];
-                    work = (byte) (work + 0x01);
-                    carry = this.lastEntropy[i] == (byte) 0xff;
-                    this.lastEntropy[i] = work;
+                byte work = this.lastEntropy[i];
+                work = (byte) (work + 0x01);
+                carry = this.lastEntropy[i] == (byte) 0xff;
+                this.lastEntropy[i] = work;
+                if (!carry){
+                    break;
                 }
             }
             if (carry) {

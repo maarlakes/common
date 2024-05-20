@@ -15,4 +15,6 @@ public @interface SyncLock {
     boolean fair() default false;
 
     long timeout() default 0;
+
+    boolean supportAsync() default false;
 }

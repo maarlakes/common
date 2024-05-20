@@ -5,8 +5,10 @@ import jakarta.annotation.Nonnull;
 import java.io.Serializable;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * @author linjpxc
@@ -107,5 +109,41 @@ public interface ContentType extends Serializable {
     @Nonnull
     static ContentType create(@Nonnull String mediaType, String charset, Collection<? extends NameValuePair> parameters) {
         return new DefaultContentType(mediaType, charset, parameters == null ? Collections.emptyList() : parameters);
+    }
+
+    static ContentType parse(String value) {
+        if (value == null) {
+            return null;
+        }
+        value = value.trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+
+        int endIndex = value.indexOf(";");
+        if (endIndex < 0) {
+            return create(value);
+        }
+        final String mediaType = value.substring(0, endIndex).trim();
+
+        value = value.substring(endIndex + 1).trim();
+        if (value.isEmpty()) {
+            return create(mediaType);
+        }
+        final List<NameValuePair> params = new ArrayList<>();
+        String charset = null;
+        for (String item : value.split(";")) {
+            final String[] tmp = item.split("=");
+            if (tmp.length != 2) {
+                continue;
+            }
+            final String name = tmp[0].trim();
+            if ("charset".equalsIgnoreCase(name)) {
+                charset = tmp[1].trim();
+            } else {
+                params.add(new DefaultNameValuePair(name, tmp[1].trim()));
+            }
+        }
+        return create(mediaType, charset, params);
     }
 }

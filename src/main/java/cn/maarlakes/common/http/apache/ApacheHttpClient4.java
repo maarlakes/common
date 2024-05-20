@@ -28,7 +28,6 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -193,14 +192,12 @@ public class ApacheHttpClient4 implements HttpClient {
         private final URI uri;
         private final HttpResponse response;
         private final HttpContext context;
-        private final byte[] body;
-        private final String contentType;
         private final SocketAddress remoteAddress;
+        private final ResponseBody body;
 
         private DefaultResponse(URI uri, HttpResponse response, HttpContext context) {
             this.uri = uri;
             this.response = response;
-            this.contentType = Optional.ofNullable(response.getEntity()).map(HttpEntity::getContentType).map(Object::toString).orElse(null);
             final Object attribute = context.getAttribute("http.connection");
             if (attribute instanceof HttpInetConnection) {
                 final HttpInetConnection connection = (HttpInetConnection) attribute;
@@ -208,12 +205,18 @@ public class ApacheHttpClient4 implements HttpClient {
             } else {
                 remoteAddress = null;
             }
-
-            try {
-                this.body = EntityUtils.toByteArray(response.getEntity());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            final HttpEntity entity = response.getEntity();
+            byte[] buffer;
+            if (entity == null) {
+                buffer = new byte[0];
+            } else {
+                try {
+                    buffer = EntityUtils.toByteArray(entity);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
+            this.body = new ByteArrayResponseBody(buffer, Optional.ofNullable(response.getEntity()).map(HttpEntity::getContentType).map(Object::toString).map(ContentType::parse).orElse(null));
             this.context = context;
         }
 
@@ -227,41 +230,15 @@ public class ApacheHttpClient4 implements HttpClient {
             return this.response.getStatusLine().getReasonPhrase();
         }
 
+        @Nonnull
         @Override
-        public String getBody(@Nonnull Charset charset) {
-            final byte[] buffer = this.body;
-            if (buffer == null) {
-                return null;
-            }
-            return new String(buffer, charset);
-        }
-
-        @Override
-        public InputStream getBodyAsStream() {
-            final byte[] buffer = this.body;
-            if (buffer == null) {
-                return null;
-            }
-            return new ByteArrayInputStream(buffer);
-        }
-
-        @Override
-        public byte[] getBodyAsBytes() {
-            final byte[] buffer = this.body;
-            if (buffer == null) {
-                return null;
-            }
-            return Arrays.copyOf(buffer, buffer.length);
+        public ResponseBody getBody() {
+            return this.body;
         }
 
         @Override
         public URI getUri() {
             return this.uri;
-        }
-
-        @Override
-        public String getContentType() {
-            return this.contentType;
         }
 
         @Nonnull

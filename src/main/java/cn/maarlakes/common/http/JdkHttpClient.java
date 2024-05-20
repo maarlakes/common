@@ -6,7 +6,6 @@ import cn.maarlakes.common.utils.CollectionUtils;
 import cn.maarlakes.common.utils.StreamUtils;
 import jakarta.annotation.Nonnull;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,7 +14,10 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -115,16 +117,17 @@ public class JdkHttpClient implements HttpClient {
     private static class DefaultResponse implements Response {
         private final int statusCode;
         private final String statusText;
-        private final byte[] body;
         private final URI uri;
         private final HttpHeaders headers;
+        private final ResponseBody body;
 
         private DefaultResponse(int statusCode, String statusText, byte[] body, URI uri, HttpHeaders headers) {
             this.statusCode = statusCode;
             this.statusText = statusText;
-            this.body = body;
             this.uri = uri;
             this.headers = headers;
+
+            this.body = new ByteArrayResponseBody(body == null ? new byte[0] : body, Optional.ofNullable(this.headers.getHeader("content-type").get()).map(ContentType::parse).orElse(null));
         }
 
         @Override
@@ -137,38 +140,15 @@ public class JdkHttpClient implements HttpClient {
             return this.statusText;
         }
 
+        @Nonnull
         @Override
-        public String getBody(@Nonnull Charset charset) {
-            if (this.body == null) {
-                return null;
-            }
-            return new String(this.body, charset);
-        }
-
-        @Override
-        public InputStream getBodyAsStream() {
-            if (this.body == null) {
-                return null;
-            }
-            return new ByteArrayInputStream(this.body);
-        }
-
-        @Override
-        public byte[] getBodyAsBytes() {
-            if (this.body == null) {
-                return null;
-            }
-            return Arrays.copyOf(this.body, this.body.length);
+        public ResponseBody getBody() {
+            return this.body;
         }
 
         @Override
         public URI getUri() {
             return this.uri;
-        }
-
-        @Override
-        public String getContentType() {
-            return this.headers.getHeader("content-type").get();
         }
 
         @Nonnull

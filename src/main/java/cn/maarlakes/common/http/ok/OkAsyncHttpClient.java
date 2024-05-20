@@ -3,6 +3,7 @@ package cn.maarlakes.common.http.ok;
 import cn.maarlakes.common.function.Function0;
 import cn.maarlakes.common.http.Request;
 import cn.maarlakes.common.http.Response;
+import cn.maarlakes.common.http.ResponseBody;
 import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.utils.CollectionUtils;
@@ -14,12 +15,9 @@ import okhttp3.*;
 import okhttp3.internal.connection.Exchange;
 import okhttp3.internal.connection.RealConnection;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.SocketAddress;
 import java.net.URI;
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -177,18 +175,18 @@ public class OkAsyncHttpClient implements HttpClient {
 
         private final okhttp3.Response response;
         private final List<cn.maarlakes.common.http.Cookie> cookies;
-        private final Function0<byte[]> bodyFactory;
+        private final Function0<ResponseBody> bodyFactory;
 
         private DefaultResponse(@Nonnull okhttp3.Response response, List<cn.maarlakes.common.http.Cookie> cookies) {
             this.response = response;
             this.cookies = cookies;
 
             this.bodyFactory = Lazy.of(() -> {
-                final ResponseBody body = response.body();
+                final okhttp3.ResponseBody body = response.body();
                 if (body == null) {
-                    return null;
+                    return new ByteArrayResponseBody(new byte[0], null);
                 }
-                return body.bytes();
+                return new ByteArrayResponseBody(body.bytes(), Optional.ofNullable(body.contentType()).map(MediaType::toString).map(ContentType::parse).orElse(null));
             });
         }
 
@@ -202,63 +200,15 @@ public class OkAsyncHttpClient implements HttpClient {
             return this.response.message();
         }
 
+        @Nonnull
         @Override
-        public String getBody(@Nonnull Charset charset) {
-            try {
-                final byte[] buffer = this.bodyFactory.apply();
-                if (buffer == null) {
-                    return null;
-                }
-                return new String(buffer, charset);
-            } catch (Exception e) {
-                if (e instanceof IllegalStateException) {
-                    throw (IllegalStateException) e;
-                }
-                throw new IllegalStateException(e.getMessage(), e);
-            }
-        }
-
-        @Override
-        public InputStream getBodyAsStream() {
-            try {
-                final byte[] buffer = this.bodyFactory.apply();
-                if (buffer == null) {
-                    return null;
-                }
-                return new ByteArrayInputStream(buffer);
-            } catch (Exception e) {
-                throw new IllegalStateException(e.getMessage(), e);
-            }
-        }
-
-        @Override
-        public byte[] getBodyAsBytes() {
-            try {
-                final byte[] buffer = this.bodyFactory.apply();
-                if (buffer == null) {
-                    return null;
-                }
-                return Arrays.copyOf(buffer, buffer.length);
-            } catch (Exception e) {
-                throw new IllegalStateException(e.getMessage(), e);
-            }
+        public ResponseBody getBody() {
+            return this.bodyFactory.get();
         }
 
         @Override
         public URI getUri() {
             return this.response.request().url().uri();
-        }
-
-        @Override
-        public String getContentType() {
-            final ResponseBody body = this.response.body();
-            if (body != null) {
-                final MediaType mediaType = body.contentType();
-                if (mediaType != null) {
-                    return mediaType.toString();
-                }
-            }
-            return this.getHeaders().getHeader("content-type").get();
         }
 
         @Nonnull

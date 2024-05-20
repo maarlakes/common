@@ -1,5 +1,6 @@
 package cn.maarlakes.common.utils;
 
+import cn.maarlakes.common.function.Consumer3;
 import jakarta.annotation.Nonnull;
 
 import java.io.*;
@@ -32,23 +33,27 @@ public final class StreamUtils {
         return builder.toString();
     }
 
-    public static int copy(@Nonnull InputStream in, @Nonnull OutputStream out) throws IOException {
+    public static int writeTo(@Nonnull InputStream in, @Nonnull OutputStream out) throws IOException {
+        final int result = writeTo(in, out::write);
+        out.flush();
+        return result;
+    }
+
+    public static int writeTo(@Nonnull InputStream in, @Nonnull Consumer3<byte[], Integer, Integer> consumer) throws IOException {
         int byteCount = 0;
         int bytesRead;
         final byte[] buffer = new byte[BUFFER_SIZE];
         while ((bytesRead = in.read(buffer)) >= 0) {
-            out.write(buffer, 0, bytesRead);
+            consumer.acceptUnchecked(buffer, 0, bytesRead);
             byteCount += bytesRead;
         }
-
-        out.flush();
         return byteCount;
     }
 
     @Nonnull
     public static byte[] readAllBytes(@Nonnull InputStream stream) throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            copy(stream, out);
+            writeTo(stream, out);
             return out.toByteArray();
         }
     }

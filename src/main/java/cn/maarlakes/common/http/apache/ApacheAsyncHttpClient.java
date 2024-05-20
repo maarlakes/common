@@ -26,13 +26,14 @@ import org.apache.hc.core5.http.nio.support.AsyncRequestBuilder;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.reactor.IOReactorStatus;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
@@ -193,15 +194,13 @@ public class ApacheAsyncHttpClient implements HttpClient {
         private final URI uri;
         private final HttpContext context;
         private final HttpResponse response;
-        private final byte[] bodyBuffer;
-        private final org.apache.hc.core5.http.ContentType contentType;
+        private final ResponseBody body;
 
         private DefaultResponse(@Nonnull URI uri, HttpContext context, @Nonnull HttpResponse response, byte[] bodyBuffer, org.apache.hc.core5.http.ContentType contentType) {
             this.uri = uri;
             this.context = context;
             this.response = response;
-            this.bodyBuffer = bodyBuffer;
-            this.contentType = contentType;
+            this.body = new ByteArrayResponseBody(bodyBuffer == null ? new byte[0] : bodyBuffer, ContentType.parse(contentType.toString()));
         }
 
         @Override
@@ -214,38 +213,15 @@ public class ApacheAsyncHttpClient implements HttpClient {
             return this.response.getReasonPhrase();
         }
 
+        @Nonnull
         @Override
-        public String getBody(@Nonnull Charset charset) {
-            if (this.bodyBuffer == null) {
-                return null;
-            }
-            return new String(this.bodyBuffer, charset);
-        }
-
-        @Override
-        public InputStream getBodyAsStream() {
-            if (this.bodyBuffer == null) {
-                return null;
-            }
-            return new ByteArrayInputStream(this.bodyBuffer);
-        }
-
-        @Override
-        public byte[] getBodyAsBytes() {
-            return Arrays.copyOf(this.bodyBuffer, this.bodyBuffer.length);
+        public ResponseBody getBody() {
+            return this.body;
         }
 
         @Override
         public URI getUri() {
             return this.uri;
-        }
-
-        @Override
-        public String getContentType() {
-            if (this.contentType == null) {
-                return null;
-            }
-            return this.contentType.toString();
         }
 
         @Nonnull

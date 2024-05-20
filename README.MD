@@ -7,7 +7,7 @@
 <dependency>
     <groupId>cn.maarlakes</groupId>
     <artifactId>common</artifactId>
-    <version>1.3.0</version>
+    <version>1.5.1</version>
 </dependency>
 ```
 

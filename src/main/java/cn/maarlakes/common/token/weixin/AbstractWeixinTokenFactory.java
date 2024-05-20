@@ -30,7 +30,7 @@ public abstract class AbstractWeixinTokenFactory implements WeixinTokenFactory {
         return this.httpClient.execute(this.buildRequest(appId))
                 .thenApply(response -> {
                     if (response.getStatusCode() == 200) {
-                        return WeixinTokenUtils.toWeixinToken(response.getBody(StandardCharsets.UTF_8), appId, now);
+                        return WeixinTokenUtils.toWeixinToken(response.getBody().asText(StandardCharsets.UTF_8), appId, now);
                     }
                     throw new TokenException("网络请求错误，HttpStatus:" + response.getStatusCode() + ", Description:" + response.getStatusText());
                 }).exceptionally(error -> {

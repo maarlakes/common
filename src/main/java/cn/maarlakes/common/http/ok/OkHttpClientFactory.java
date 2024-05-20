@@ -1,6 +1,7 @@
 package cn.maarlakes.common.http.ok;
 
 import cn.maarlakes.common.Order;
+import cn.maarlakes.common.function.Function0;
 import cn.maarlakes.common.http.HttpClient;
 import cn.maarlakes.common.http.HttpClientFactory;
 import cn.maarlakes.common.spi.SpiService;
@@ -31,10 +32,16 @@ public class OkHttpClientFactory implements HttpClientFactory {
     @Override
     public HttpClient createClient(@Nonnull Executor executor) {
         final OkHttpClient.Builder builder = new OkHttpClient.Builder();
-        if (executor instanceof ExecutorService){
+        if (executor instanceof ExecutorService) {
             builder.dispatcher(new Dispatcher((ExecutorService) executor));
         }
         return new OkAsyncHttpClient(builder.build());
+    }
+
+    @Nonnull
+    @Override
+    public HttpClient createClient(@Nonnull Function0<Executor> executorFactory) {
+        return new OkAsyncHttpClient(new OkHttpClient.Builder().build());
     }
 
     @Override

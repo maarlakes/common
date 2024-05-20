@@ -13,15 +13,10 @@ import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.request.body.multipart.InputStreamPart;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletionStage;
 
 /**
@@ -161,19 +156,10 @@ public class NettyAsyncHttpClient implements HttpClient {
             return this.response.getStatusText();
         }
 
+        @Nonnull
         @Override
-        public String getBody(@Nonnull Charset charset) {
-            return this.response.getResponseBody(charset);
-        }
-
-        @Override
-        public InputStream getBodyAsStream() {
-            return this.response.getResponseBodyAsStream();
-        }
-
-        @Override
-        public byte[] getBodyAsBytes() {
-            return this.response.getResponseBodyAsBytes();
+        public ResponseBody getBody() {
+            return new ByteArrayResponseBody(this.response.getResponseBodyAsBytes(), Optional.ofNullable(this.response.getContentType()).map(ContentType::parse).orElse(null));
         }
 
         @Override
@@ -183,11 +169,6 @@ public class NettyAsyncHttpClient implements HttpClient {
             } catch (URISyntaxException e) {
                 throw new IllegalArgumentException(e);
             }
-        }
-
-        @Override
-        public String getContentType() {
-            return this.response.getContentType();
         }
 
         @Nonnull

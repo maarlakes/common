@@ -1,6 +1,7 @@
 package cn.maarlakes.common.http.async;
 
 import cn.maarlakes.common.Order;
+import cn.maarlakes.common.function.Function0;
 import cn.maarlakes.common.http.HttpClient;
 import cn.maarlakes.common.http.HttpClientFactory;
 import cn.maarlakes.common.spi.SpiService;
@@ -30,9 +31,9 @@ public class AsyncHttpClientFactory implements HttpClientFactory {
 
     @Nonnull
     @Override
-    public HttpClient createClient(@Nonnull Executor executor) {
+    public HttpClient createClient(@Nonnull Function0<Executor> executorFactory) {
         final DefaultAsyncHttpClientConfig.Builder builder = new DefaultAsyncHttpClientConfig.Builder();
-        builder.setEventLoopGroup(new NioEventLoopGroup(0, executor, SelectorProvider.provider()));
+        builder.setEventLoopGroup(new NioEventLoopGroup(0, executorFactory.get(), SelectorProvider.provider()));
         return new NettyAsyncHttpClient(Dsl.asyncHttpClient(builder));
     }
 
