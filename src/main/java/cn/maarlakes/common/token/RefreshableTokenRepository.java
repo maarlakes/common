@@ -9,12 +9,6 @@ import java.util.concurrent.CompletionStage;
  */
 public interface RefreshableTokenRepository<T extends ExpirationAppToken<A, V>, A, V> extends CacheableTokenRepository<T, A, V> {
 
-    @Nonnull
-    @Override
-    default CompletionStage<T> getTokenAsync(@Nonnull A appId) {
-        return this.getTokenAsync(appId, true);
-    }
-
     @SuppressWarnings("unchecked")
     default CompletionStage<T> getTokenAsync(@Nonnull A appId, boolean autoRefresh) {
         if (autoRefresh) {

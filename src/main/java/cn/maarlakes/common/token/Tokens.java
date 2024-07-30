@@ -4,6 +4,7 @@ import jakarta.annotation.Nonnull;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 
 /**
@@ -34,6 +35,9 @@ public final class Tokens {
     public static TokenException newTokenException(@Nonnull Throwable exception) {
         if (exception instanceof TokenException) {
             return (TokenException) exception;
+        }
+        if (exception instanceof CompletionException && exception.getCause() != null) {
+            return new TokenException(exception.getCause().getMessage(), exception.getCause());
         }
         return new TokenException(exception.getMessage(), exception);
     }

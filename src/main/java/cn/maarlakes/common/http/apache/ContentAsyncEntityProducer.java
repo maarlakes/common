@@ -70,6 +70,7 @@ class ContentAsyncEntityProducer implements AsyncEntityProducer {
         this.body.writeTo((buffer, offset, length) -> {
             final ByteBuffer buf = ByteBuffer.wrap(buffer, offset, length);
             channel.write(buf);
+            channel.endStream();
             buf.clear();
         });
     }

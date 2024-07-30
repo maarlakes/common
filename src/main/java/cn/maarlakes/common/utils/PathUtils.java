@@ -16,9 +16,13 @@ public final class PathUtils {
 
     @Nonnull
     public static String combineWith(@Nonnull String delimiter, @Nonnull String... paths) {
-        final StringBuilder builder = new StringBuilder();
+        if (paths.length < 1) {
+            return "";
+        }
+        final StringBuilder builder = new StringBuilder(paths[0]);
         final int length = delimiter.length();
-        for (String path : paths) {
+        for (int i = 1; i < paths.length; i++) {
+            final String path = paths[i];
             if (builder.lastIndexOf(delimiter) == builder.length() - length) {
                 if (path.startsWith(delimiter)) {
                     builder.append(path.substring(length));
@@ -26,11 +30,10 @@ public final class PathUtils {
                     builder.append(path);
                 }
             } else {
-                if (path.startsWith(delimiter)) {
-                    builder.append(path);
-                } else {
-                    builder.append(delimiter).append(path);
+                if (!path.startsWith(delimiter)) {
+                    builder.append(delimiter);
                 }
+                builder.append(path);
             }
         }
         return builder.toString();
