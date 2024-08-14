@@ -3,6 +3,7 @@ package cn.maarlakes.common.http.ok;
 import cn.maarlakes.common.http.ContentType;
 import cn.maarlakes.common.http.ContentTypes;
 import cn.maarlakes.common.http.body.ContentBody;
+import cn.maarlakes.common.http.body.ContentChannel;
 import jakarta.annotation.Nonnull;
 import okhttp3.MediaType;
 import okhttp3.RequestBody;
@@ -39,7 +40,9 @@ class ContentRequestBody extends RequestBody {
 
     @Override
     public void writeTo(@Nonnull BufferedSink bufferedSink) throws IOException {
-        if (this.body != null) {
+        if (this.body instanceof ContentChannel) {
+            ((ContentChannel) this.body).transferTo(bufferedSink);
+        } else if (this.body != null) {
             this.body.writeTo(bufferedSink::write);
         }
     }

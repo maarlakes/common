@@ -3,11 +3,13 @@ package cn.maarlakes.common.http.apache;
 import cn.maarlakes.common.http.ContentType;
 import cn.maarlakes.common.http.ContentTypes;
 import cn.maarlakes.common.http.body.ContentBody;
+import cn.maarlakes.common.http.body.ContentChannel;
 import org.apache.hc.core5.http.nio.AsyncEntityProducer;
 import org.apache.hc.core5.http.nio.DataStreamChannel;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -67,12 +69,34 @@ class ContentAsyncEntityProducer implements AsyncEntityProducer {
 
     @Override
     public void produce(DataStreamChannel channel) throws IOException {
-        this.body.writeTo((buffer, offset, length) -> {
-            final ByteBuffer buf = ByteBuffer.wrap(buffer, offset, length);
-            channel.write(buf);
-            channel.endStream();
-            buf.clear();
-        });
+        if (this.body instanceof ContentChannel) {
+            final ContentChannel contentChannel = (ContentChannel) this.body;
+            contentChannel.transferTo(new WritableByteChannel() {
+                @Override
+                public int write(ByteBuffer src) throws IOException {
+                    final int count = channel.write(src);
+                    channel.endStream();
+                    return count;
+                }
+
+                @Override
+                public boolean isOpen() {
+                    return true;
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+            });
+        } else {
+            this.body.writeTo((buffer, offset, length) -> {
+                final ByteBuffer buf = ByteBuffer.wrap(buffer, offset, length);
+                channel.write(buf);
+                channel.endStream();
+                buf.clear();
+            });
+        }
     }
 
     @Override

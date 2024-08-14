@@ -115,22 +115,7 @@ public class NettyAsyncHttpClient implements HttpClient {
     }
 
     private static RequestBuilder toBuilder(@Nonnull HttpMethod method, @Nonnull String url) {
-        if ("get".equalsIgnoreCase(method.name())) {
-            return Dsl.get(url);
-        }
-        if ("post".equalsIgnoreCase(method.name())) {
-            return Dsl.post(url);
-        }
-        if ("put".equalsIgnoreCase(method.name())) {
-            return Dsl.put(url);
-        }
-        if ("delete".equalsIgnoreCase(method.name())) {
-            return Dsl.delete(url);
-        }
-        if ("patch".equalsIgnoreCase(method.name())) {
-            return Dsl.patch(url);
-        }
-        throw new IllegalArgumentException("method must be one of get, post, put, delete, patch");
+        return Dsl.request(method.name(), url);
     }
 
     @Override

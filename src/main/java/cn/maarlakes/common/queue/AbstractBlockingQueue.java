@@ -3,9 +3,9 @@ package cn.maarlakes.common.queue;
 import jakarta.annotation.Nonnull;
 
 import java.io.Closeable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author linjpxc
@@ -14,10 +14,12 @@ public abstract class AbstractBlockingQueue<T> extends AbstractTopicQueue<T> imp
 
     protected static final int DESTROY = 0;
     protected static final int STOPPED = 1;
-    protected static final int STARTED = 2;
+    protected static final int STARTING = 2;
+    protected static final int STARTED = 3;
     protected final Executor executor;
 
     protected final AtomicInteger status = new AtomicInteger(STOPPED);
+    private final AtomicReference<Thread> mainThread = new AtomicReference<>();
 
     protected AbstractBlockingQueue(Executor executor) {
         this.executor = executor;
@@ -26,6 +28,7 @@ public abstract class AbstractBlockingQueue<T> extends AbstractTopicQueue<T> imp
     @Override
     public void close() {
         this.status.set(DESTROY);
+        this.destroyMainThread();
     }
 
     protected void start() {
@@ -34,20 +37,24 @@ public abstract class AbstractBlockingQueue<T> extends AbstractTopicQueue<T> imp
                 while (this.status.get() == STARTED) {
                     try {
                         final DefaultQueueContext<T> context = new DefaultQueueContext<>(this.name(), this.take());
-                        CompletableFuture.runAsync(() -> this.onMessage(context), this.executor);
+                        this.executor.execute(() -> this.onMessage(context));
                     } catch (InterruptedException e) {
+                        this.status.compareAndSet(STARTED, STOPPED);
                         break;
                     } catch (Exception ignored) {
                     }
                 }
             });
             thread.setDaemon(true);
+            mainThread.set(thread);
             thread.start();
         }
     }
 
     protected void stop() {
-        this.status.set(STOPPED);
+        if (this.status.compareAndSet(STARTED, STOPPED)) {
+            this.destroyMainThread();
+        }
     }
 
     @Override
@@ -69,4 +76,14 @@ public abstract class AbstractBlockingQueue<T> extends AbstractTopicQueue<T> imp
     @Nonnull
     protected abstract T take() throws Exception;
 
+    private void destroyMainThread() {
+        final Thread thread = mainThread.get();
+        if (thread != null) {
+            mainThread.compareAndSet(thread, null);
+            try {
+                thread.interrupt();
+            } catch (Exception ignored) {
+            }
+        }
+    }
 }

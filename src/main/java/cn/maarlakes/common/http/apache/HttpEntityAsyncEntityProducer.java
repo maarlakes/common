@@ -71,6 +71,7 @@ class HttpEntityAsyncEntityProducer implements AsyncEntityProducer {
             this.entity.writeTo(out);
             final ByteBuffer buffer = ByteBuffer.wrap(out.toByteArray());
             channel.write(buffer);
+            channel.endStream();
             buffer.clear();
         }
     }

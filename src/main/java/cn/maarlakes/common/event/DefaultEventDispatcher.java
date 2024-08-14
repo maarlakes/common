@@ -1,11 +1,11 @@
 package cn.maarlakes.common.event;
 
+import cn.maarlakes.common.utils.ExecutorFactory;
+import cn.maarlakes.common.utils.Lazy;
+import cn.maarlakes.common.utils.SharedExecutorFactory;
 import jakarta.annotation.Nonnull;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * @author linjpxc
@@ -13,24 +13,24 @@ import java.util.concurrent.TimeUnit;
 public class DefaultEventDispatcher implements EventDispatcher {
 
     @Nonnull
-    private final EventExecutorFactory executorFactory;
+    private final Lazy<Executor> executor;
 
     public DefaultEventDispatcher(int threads) {
         this(new ThreadPoolExecutor(threads, threads, 1L, TimeUnit.MINUTES, new LinkedBlockingQueue<>()));
     }
 
     public DefaultEventDispatcher(@Nonnull ExecutorService executor) {
-        this(new DefaultEventExecutorFactory(executor));
+        this(new SharedExecutorFactory(executor));
     }
 
-    public DefaultEventDispatcher(@Nonnull EventExecutorFactory executorFactory) {
-        this.executorFactory = executorFactory;
+    public DefaultEventDispatcher(@Nonnull ExecutorFactory executorFactory) {
+        this.executor = Lazy.of(executorFactory);
     }
 
     @Override
     public <E> void dispatch(@Nonnull EventInvoker invoker, @Nonnull E event) {
         if (invoker.supportedAsync()) {
-            this.executorFactory.getExecutor().execute(() -> invoker.invoke(event));
+            this.executor.get().execute(() -> invoker.invoke(event));
         } else {
             invoker.invoke(event);
         }

@@ -1,7 +1,11 @@
 package cn.maarlakes.common.utils;
 
+import jakarta.annotation.Nonnull;
+
 import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * @author linjpxc
@@ -25,5 +29,19 @@ public final class CollectionUtils {
 
     public static <K, V> boolean isNotEmpty(Map<K, V> map) {
         return !isEmpty(map);
+    }
+
+    public static <T> Stream<T> stream(@Nonnull Iterable<T> iterator) {
+        return stream(iterator, false);
+    }
+
+    public static <T> Stream<T> stream(@Nonnull Iterable<T> iterator, boolean parallel) {
+        if (iterator instanceof Collection) {
+            if (parallel) {
+                return ((Collection<T>) iterator).parallelStream();
+            }
+            return ((Collection<T>) iterator).stream();
+        }
+        return StreamSupport.stream(iterator.spliterator(), parallel);
     }
 }

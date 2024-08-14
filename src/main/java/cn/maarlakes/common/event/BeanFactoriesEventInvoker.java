@@ -36,6 +36,9 @@ class BeanFactoriesEventInvoker implements EventInvoker, Ordered {
 
     @Override
     public void invoke(@Nonnull Object event) {
+        if (this.method.getParameterCount() < 1) {
+            throw new EventException(this.method.getName() + " Unsupported event type: " + event.getClass());
+        }
         if (method.getParameterCount() == 1) {
             this.invokeMethod(event);
         } else {
