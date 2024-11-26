@@ -18,7 +18,12 @@ public interface ResponseBody {
     @Nonnull
     InputStream getContent();
 
+    @Nonnull
+    InputStream getOriginalContent();
+
     ContentType getContentType();
+
+    Header getContentEncoding();
 
     @Nonnull
     default Charset getCharset() {

@@ -3,7 +3,9 @@ package cn.maarlakes.common.queue;
 import jakarta.annotation.Nonnull;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Predicate;
 
 /**
  * @author linjpxc
@@ -36,6 +38,8 @@ public interface TopicQueue<T> extends Iterable<T> {
     boolean removeAll(@Nonnull Collection<? extends T> values);
 
     CompletionStage<Boolean> removeAllAsync(@Nonnull Collection<? extends T> values);
+
+    List<? extends T> removeIf(@Nonnull Predicate<T> predicate);
 
     boolean contains(@Nonnull T value);
 

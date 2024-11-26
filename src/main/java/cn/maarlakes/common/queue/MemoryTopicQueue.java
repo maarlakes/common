@@ -2,9 +2,9 @@ package cn.maarlakes.common.queue;
 
 import jakarta.annotation.Nonnull;
 
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Predicate;
 
 /**
  * @author linjpxc
@@ -28,7 +28,7 @@ public class MemoryTopicQueue<T> extends AbstractBlockingQueue<T> {
     }
 
     public MemoryTopicQueue(@Nonnull String name, BlockingQueue<T> queue, @Nonnull Executor executor) {
-        super(executor);
+        super(executor, null);
         this.name = name;
         this.queue = queue;
     }
@@ -98,6 +98,19 @@ public class MemoryTopicQueue<T> extends AbstractBlockingQueue<T> {
     @Override
     public CompletionStage<Boolean> removeAllAsync(@Nonnull Collection<? extends T> values) {
         return CompletableFuture.completedFuture(this.removeAll(values));
+    }
+
+    @Override
+    public List<? extends T> removeIf(@Nonnull Predicate<T> predicate) {
+        final List<T> list = new ArrayList<>();
+        this.queue.removeIf(item -> {
+            final boolean result = predicate.test(item);
+            if (result){
+                list.add(item);
+            }
+            return result;
+        });
+        return list;
     }
 
     @Override

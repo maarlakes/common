@@ -6,7 +6,7 @@
 
     <groupId>cn.maarlakes</groupId>
     <artifactId>common</artifactId>
-    <version>1.5.3</version>
+    <version>1.6.0</version>
 
     <licenses>
         <license>
@@ -49,6 +49,7 @@
         <apache.httpclient5.version>5.0</apache.httpclient5.version>
         <apache.httpclient.version>4.5.3</apache.httpclient.version>
         <okhttp.version>4.10.0</okhttp.version>
+        <brotli.dec.version>0.1.2</brotli.dec.version>
 
         <spring.version>5.0.0.RELEASE</spring.version>
     </properties>
@@ -64,6 +65,11 @@
             <groupId>com.aventrix.jnanoid</groupId>
             <artifactId>jnanoid</artifactId>
             <version>${jnanoid.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.brotli</groupId>
+            <artifactId>dec</artifactId>
+            <version>${brotli.dec.version}</version>
         </dependency>
 
         <dependency>

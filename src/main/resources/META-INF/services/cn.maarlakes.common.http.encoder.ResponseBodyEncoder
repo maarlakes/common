@@ -1,0 +1,3 @@
+cn.maarlakes.common.http.encoder.BrResponseBodyEncoder
+cn.maarlakes.common.http.encoder.DeflateResponseBodyEncoder
+cn.maarlakes.common.http.encoder.GzipResponseBodyEncoder

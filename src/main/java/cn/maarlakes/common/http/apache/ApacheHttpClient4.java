@@ -8,13 +8,17 @@ import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.utils.CollectionUtils;
 import jakarta.annotation.Nonnull;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpInetConnection;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.client.utils.URIUtils;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.mime.FormBodyPartBuilder;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
@@ -22,7 +26,6 @@ import org.apache.http.entity.mime.content.ContentBody;
 import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.InputStreamBody;
 import org.apache.http.impl.client.BasicCookieStore;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HttpContext;
@@ -44,7 +47,7 @@ import java.util.stream.Collectors;
  */
 public class ApacheHttpClient4 implements HttpClient {
 
-    private final CloseableHttpClient client;
+    private final org.apache.http.client.HttpClient client;
     private final Executor executor;
 
     public ApacheHttpClient4() {
@@ -55,11 +58,11 @@ public class ApacheHttpClient4 implements HttpClient {
         this(HttpClientBuilder.create().build(), executor);
     }
 
-    public ApacheHttpClient4(@Nonnull CloseableHttpClient client) {
+    public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client) {
         this(client, new ForkJoinPool());
     }
 
-    public ApacheHttpClient4(@Nonnull CloseableHttpClient client, @Nonnull Executor executor) {
+    public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, @Nonnull Executor executor) {
         this.client = client;
         this.executor = executor;
     }
@@ -67,7 +70,7 @@ public class ApacheHttpClient4 implements HttpClient {
     @Nonnull
     @Override
     @SuppressWarnings("DuplicatedCode")
-    public CompletionStage<? extends Response> execute(@Nonnull Request request) {
+    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
@@ -87,13 +90,18 @@ public class ApacheHttpClient4 implements HttpClient {
                         }
                     }
                 }
-                final HttpContext context = HttpClientContext.create();
-                context.setAttribute(HttpClientContext.COOKIE_STORE, new BasicCookieStore());
+                final HttpClientContext context = HttpClientContext.create();
+                context.setCookieStore(new BasicCookieStore());
+                final org.apache.http.client.config.RequestConfig requestConfig = to(config);
+                if (requestConfig != null) {
+                    context.setRequestConfig(requestConfig);
+                }
                 if (CollectionUtils.isNotEmpty(request.getCookies())) {
                     builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
                 }
 
-                return this.client.execute(builder.build(), (ResponseHandler<Response>) response -> new DefaultResponse(request.getUri(), response, context), context);
+                final HttpUriRequest uriRequest = builder.build();
+                return this.client.execute(determineTarget(uriRequest), uriRequest, (ResponseHandler<Response>) response -> new DefaultResponse(request.getUri(), response, context), context);
             } catch (Exception e) {
                 throw new HttpClientException(e.getMessage(), e);
             }
@@ -102,7 +110,13 @@ public class ApacheHttpClient4 implements HttpClient {
 
     @Override
     public void close() throws IOException {
-        this.client.close();
+        if (this.client instanceof AutoCloseable) {
+            try {
+                ((AutoCloseable) this.client).close();
+            } catch (Exception e) {
+                throw new IOException(e);
+            }
+        }
         if (this.executor instanceof ExecutorService) {
             ((ExecutorService) this.executor).shutdown();
         }
@@ -118,6 +132,24 @@ public class ApacheHttpClient4 implements HttpClient {
             );
         }
         return result;
+    }
+
+    private static org.apache.http.client.config.RequestConfig to(RequestConfig config) {
+        if (config == null) {
+            return null;
+        }
+        final org.apache.http.client.config.RequestConfig.Builder builder = org.apache.http.client.config.RequestConfig.custom();
+        builder.setRedirectsEnabled(config.isRedirectsEnabled());
+        if (config.getRequestTimeout() != null) {
+            builder.setConnectionRequestTimeout((int) config.getRequestTimeout().toMillis());
+        }
+        if (config.getResponseTimeout() != null) {
+            builder.setSocketTimeout((int) config.getResponseTimeout().toMillis());
+        }
+        if (config.getConnectTimeout() != null) {
+            builder.setConnectTimeout((int) config.getConnectTimeout().toMillis());
+        }
+        return builder.build();
     }
 
     @Nonnull
@@ -188,6 +220,20 @@ public class ApacheHttpClient4 implements HttpClient {
         }
     }
 
+    private static HttpHost determineTarget(final HttpUriRequest request) throws ClientProtocolException {
+        HttpHost target = null;
+
+        final URI uri = request.getURI();
+        if (uri.isAbsolute()) {
+            target = URIUtils.extractHost(uri);
+            if (target == null) {
+                throw new ClientProtocolException("URI does not specify a valid host name: "
+                        + uri);
+            }
+        }
+        return target;
+    }
+
     private static class DefaultResponse implements Response {
         private final URI uri;
         private final HttpResponse response;
@@ -216,7 +262,11 @@ public class ApacheHttpClient4 implements HttpClient {
                     throw new RuntimeException(e);
                 }
             }
-            this.body = new ByteArrayResponseBody(buffer, Optional.ofNullable(response.getEntity()).map(HttpEntity::getContentType).map(Object::toString).map(ContentType::parse).orElse(null));
+            this.body = new ByteArrayResponseBody(
+                    buffer,
+                    Optional.ofNullable(response.getEntity()).map(HttpEntity::getContentType).map(Object::toString).map(ContentType::parse).orElse(null),
+                    this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
+            );
             this.context = context;
         }
 

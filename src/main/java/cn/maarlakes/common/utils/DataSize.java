@@ -593,12 +593,36 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     }
 
     @Nonnull
+    public static DataSize ofBrontobyte(BigDecimal amount) {
+        return of(amount, Unit.BB);
+    }
+
+    @Nonnull
+    public static DataSize ofBrontobyte(long amount) {
+        return ofBrontobyte(BigDecimal.valueOf(amount));
+    }
+
+    @Nonnull
+    public static DataSize ofBrontobyte(double amount) {
+        return ofBrontobyte(BigDecimal.valueOf(amount));
+    }
+
+    @Nonnull
     @JsonCreator
     public static DataSize parse(@Nonnull CharSequence text) {
-        final String value = text.toString();
+        return parse(text, null);
+    }
+
+    @Nonnull
+    @JsonCreator
+    public static DataSize parse(@Nonnull CharSequence text, NumberFormat format) {
+        final String value = text.toString().trim();
         try {
             final String unitName = getUnitName(value);
-            return of(new BigDecimal(value.substring(0, value.length() - unitName.length())), valueOfUnit(unitName));
+            if (format != null) {
+                return of(new BigDecimal(format.parse(value.substring(0, value.length() - unitName.length()).trim()).toString()), valueOfUnit(unitName));
+            }
+            return of(new BigDecimal(value.substring(0, value.length() - unitName.length()).trim()), valueOfUnit(unitName));
         } catch (Exception e) {
             throw new DataSizeFormatException(value, e);
         }
@@ -609,10 +633,11 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
         if (unitName == null || unitName.isEmpty()) {
             return Unit.B;
         }
-        if (unitName.length() == 1 && !"b".equalsIgnoreCase(unitName)) {
-            unitName += "b";
+        unitName = unitName.toUpperCase();
+        if (unitName.length() == 1 && !"B".equals(unitName)) {
+            unitName += "B";
         }
-        return Unit.valueOf(unitName.toUpperCase());
+        return Unit.valueOf(unitName);
     }
 
     private static String getUnitName(@Nonnull String text) {
@@ -620,6 +645,9 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
         final StringBuilder builder = new StringBuilder();
         for (int i = array.length - 1; i >= 0; i--) {
             final char c = array[i];
+            if (c == ' ' && builder.length() > 0) {
+                break;
+            }
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
                 builder.insert(0, c);
             }
@@ -636,7 +664,8 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
         PB(50),
         EB(60),
         ZB(70),
-        YB(80);
+        YB(80),
+        BB(90);
 
         final int power;
         final BigDecimal bytes;

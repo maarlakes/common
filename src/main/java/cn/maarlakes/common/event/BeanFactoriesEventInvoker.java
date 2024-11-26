@@ -5,6 +5,7 @@ import cn.maarlakes.common.Ordered;
 import cn.maarlakes.common.factory.bean.BeanFactories;
 import jakarta.annotation.Nonnull;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.AccessController;
@@ -30,8 +31,12 @@ class BeanFactoriesEventInvoker implements EventInvoker, Ordered {
     }
 
     @Override
-    public boolean supportedAsync() {
-        return this.eventListener.async();
+    public <A extends Annotation> A getAnnotation(@Nonnull Class<A> annotationType) {
+        A annotation = this.method.getAnnotation(annotationType);
+        if (annotation == null) {
+            annotation = this.listener.getClass().getAnnotation(annotationType);
+        }
+        return annotation;
     }
 
     @Override

@@ -11,5 +11,10 @@ import java.util.concurrent.CompletionStage;
 public interface HttpClient extends Closeable {
 
     @Nonnull
-    CompletionStage<? extends Response> execute(@Nonnull Request request);
+    default CompletionStage<? extends Response> execute(@Nonnull Request request) {
+        return execute(request, null);
+    }
+
+    @Nonnull
+    CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config);
 }

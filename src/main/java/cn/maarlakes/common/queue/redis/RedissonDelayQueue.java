@@ -2,14 +2,18 @@ package cn.maarlakes.common.queue.redis;
 
 import cn.maarlakes.common.queue.AbstractBlockingQueue;
 import cn.maarlakes.common.queue.DelayedQueue;
+import cn.maarlakes.common.utils.RateLimiter;
 import jakarta.annotation.Nonnull;
 import org.redisson.api.RBlockingQueue;
 import org.redisson.api.RDelayedQueue;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.*;
+import java.util.function.Predicate;
 
 /**
  * @author linjpxc
@@ -19,8 +23,8 @@ class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQ
     private final RBlockingQueue<T> queue;
     private final RDelayedQueue<T> delayedQueue;
 
-    protected RedissonDelayQueue(@Nonnull String name,@Nonnull RBlockingQueue<T> queue, RDelayedQueue<T> delayedQueue, @Nonnull Executor executor) {
-        super(executor);
+    protected RedissonDelayQueue(@Nonnull String name, @Nonnull RBlockingQueue<T> queue, RDelayedQueue<T> delayedQueue, @Nonnull Executor executor, RateLimiter rateLimiter) {
+        super(executor, rateLimiter);
         this.name = name;
         this.queue = queue;
         this.delayedQueue = delayedQueue;
@@ -116,6 +120,26 @@ class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQ
     @Override
     public CompletionStage<Boolean> removeAllAsync(@Nonnull Collection<? extends T> values) {
         return this.delayedQueue.removeAllAsync(values).thenCombine(this.queue.removeAllAsync(values), (a, b) -> a || b);
+    }
+
+    @Override
+    public List<? extends T> removeIf(@Nonnull Predicate<T> predicate) {
+        final List<T> list = new ArrayList<>();
+        this.queue.removeIf(item -> {
+            if (predicate.test(item)) {
+                list.add(item);
+                return true;
+            }
+            return false;
+        });
+        this.delayedQueue.removeIf(item -> {
+            if (predicate.test(item)) {
+                list.add(item);
+                return true;
+            }
+            return false;
+        });
+        return list;
     }
 
     @Override

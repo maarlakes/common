@@ -4,11 +4,11 @@ import cn.maarlakes.common.queue.AbstractBlockingQueue;
 import jakarta.annotation.Nonnull;
 import org.redisson.api.RBlockingQueue;
 
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 
 /**
  * @author linjpxc
@@ -19,7 +19,7 @@ class RedissonTopicQueue<T> extends AbstractBlockingQueue<T> {
     private final RBlockingQueue<T> queue;
 
     public RedissonTopicQueue(@Nonnull String name, @Nonnull RBlockingQueue<T> queue, @Nonnull Executor executor) {
-        super(executor);
+        super(executor, null);
         this.queue = queue;
         this.name = name;
     }
@@ -94,6 +94,19 @@ class RedissonTopicQueue<T> extends AbstractBlockingQueue<T> {
     @Override
     public CompletionStage<Boolean> removeAllAsync(@Nonnull Collection<? extends T> values) {
         return this.queue.removeAllAsync(values).toCompletableFuture();
+    }
+
+    @Override
+    public List<? extends T> removeIf(@Nonnull Predicate<T> predicate) {
+        final List<T> list = new ArrayList<>();
+        this.queue.removeIf(item -> {
+            if (predicate.test(item)){
+                list.add(item);
+                return true;
+            }
+            return false;
+        });
+        return list;
     }
 
     @Override

@@ -6,6 +6,7 @@ import cn.maarlakes.common.http.body.multipart.MultipartBody;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.utils.CollectionUtils;
 import jakarta.annotation.Nonnull;
+import org.apache.hc.client5.http.async.HttpAsyncClient;
 import org.apache.hc.client5.http.cookie.BasicCookieStore;
 import org.apache.hc.client5.http.cookie.Cookie;
 import org.apache.hc.client5.http.cookie.CookieStore;
@@ -25,6 +26,7 @@ import org.apache.hc.core5.http.nio.support.AbstractAsyncResponseConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncRequestBuilder;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.reactor.IOReactorStatus;
+import org.apache.hc.core5.util.Timeout;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -43,23 +45,26 @@ import java.util.stream.Collectors;
  */
 public class ApacheAsyncHttpClient implements HttpClient {
 
-    private final CloseableHttpAsyncClient client;
+    private final HttpAsyncClient client;
 
     public ApacheAsyncHttpClient() {
         this(HttpAsyncClientBuilder.create().build());
     }
 
-    public ApacheAsyncHttpClient(@Nonnull CloseableHttpAsyncClient httpClient) {
+    public ApacheAsyncHttpClient(@Nonnull HttpAsyncClient httpClient) {
         this.client = httpClient;
-        if (httpClient.getStatus() != IOReactorStatus.ACTIVE) {
-            httpClient.start();
+        if (httpClient instanceof CloseableHttpAsyncClient) {
+            final CloseableHttpAsyncClient closeableHttpAsyncClient = (CloseableHttpAsyncClient) httpClient;
+            if (closeableHttpAsyncClient.getStatus() != IOReactorStatus.ACTIVE) {
+                closeableHttpAsyncClient.start();
+            }
         }
     }
 
     @Nonnull
     @Override
     @SuppressWarnings("DuplicatedCode")
-    public CompletionStage<? extends Response> execute(@Nonnull Request request) {
+    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
         try {
             final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
                     .setUri(Apaches.toUri(request));
@@ -76,13 +81,17 @@ public class ApacheAsyncHttpClient implements HttpClient {
                 }
             }
 
-            final HttpContext context = HttpClientContext.create();
-            context.setAttribute(HttpClientContext.COOKIE_STORE, new BasicCookieStore());
+            final HttpClientContext context = HttpClientContext.create();
+            context.setCookieStore(new BasicCookieStore());
+            final org.apache.hc.client5.http.config.RequestConfig requestConfig = to(config);
+            if (requestConfig != null) {
+                context.setRequestConfig(requestConfig);
+            }
             if (CollectionUtils.isNotEmpty(request.getCookies())) {
                 builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
             }
             final CompletableFuture<Response> future = new CompletableFuture<>();
-            this.client.execute(builder.build(), new ResponseAsyncResponseConsumer(request.getUri(), context), context, new FutureCallback<Response>() {
+            this.client.execute(builder.build(), new ResponseAsyncResponseConsumer(request.getUri(), context), null, context, new FutureCallback<Response>() {
                 @Override
                 public void completed(Response response) {
                     future.complete(response);
@@ -108,7 +117,31 @@ public class ApacheAsyncHttpClient implements HttpClient {
 
     @Override
     public void close() throws IOException {
-        this.client.close();
+        if (this.client instanceof AutoCloseable) {
+            try {
+                ((AutoCloseable) this.client).close();
+            } catch (Exception e) {
+                throw new IOException(e);
+            }
+        }
+    }
+
+    private static org.apache.hc.client5.http.config.RequestConfig to(RequestConfig config) {
+        if (config == null) {
+            return null;
+        }
+        final org.apache.hc.client5.http.config.RequestConfig.Builder builder = org.apache.hc.client5.http.config.RequestConfig.custom();
+        builder.setRedirectsEnabled(config.isRedirectsEnabled());
+        if (config.getRequestTimeout() != null) {
+            builder.setConnectionRequestTimeout(Timeout.ofMilliseconds(config.getRequestTimeout().toMillis()));
+        }
+        if (config.getResponseTimeout() != null) {
+            builder.setResponseTimeout(Timeout.ofMilliseconds(config.getResponseTimeout().toMillis()));
+        }
+        if (config.getConnectTimeout() != null) {
+            builder.setConnectTimeout(Timeout.ofMilliseconds(config.getConnectTimeout().toMillis()));
+        }
+        return builder.build();
     }
 
     private static void settingFormParams(@Nonnull AsyncRequestBuilder builder, @Nonnull Request request) {
@@ -200,7 +233,11 @@ public class ApacheAsyncHttpClient implements HttpClient {
             this.uri = uri;
             this.context = context;
             this.response = response;
-            this.body = new ByteArrayResponseBody(bodyBuffer == null ? new byte[0] : bodyBuffer, ContentType.parse(contentType.toString()));
+            this.body = new ByteArrayResponseBody(
+                    bodyBuffer == null ? new byte[0] : bodyBuffer,
+                    ContentType.parse(contentType.toString()),
+                    this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
+            );
         }
 
         @Override

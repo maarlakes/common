@@ -1,14 +1,13 @@
 package cn.maarlakes.common.queue;
 
+import cn.maarlakes.common.utils.RateLimiter;
 import jakarta.annotation.Nonnull;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -19,12 +18,12 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
     private final BlockingQueue<DelayedWrapper<T>> queue = new DelayQueue<>();
     private final String name;
 
-    public MemoryDelayQueue(@Nonnull String name) {
-        this(name, new ForkJoinPool());
+    public MemoryDelayQueue(@Nonnull String name, RateLimiter rateLimiter) {
+        this(name, new ForkJoinPool(), rateLimiter);
     }
 
-    public MemoryDelayQueue(@Nonnull String name, @Nonnull Executor executor) {
-        super(executor);
+    public MemoryDelayQueue(@Nonnull String name, @Nonnull Executor executor, RateLimiter rateLimiter) {
+        super(executor, rateLimiter);
         this.name = name;
     }
 
@@ -105,6 +104,19 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
     @Override
     public CompletionStage<Boolean> removeAllAsync(@Nonnull Collection<? extends T> values) {
         return CompletableFuture.completedFuture(this.removeAll(values));
+    }
+
+    @Override
+    public List<? extends T> removeIf(@Nonnull Predicate<T> predicate) {
+        final List<T> list = new ArrayList<>();
+        this.queue.removeIf(item -> {
+            if (predicate.test(item.value)) {
+                list.add(item.value);
+                return true;
+            }
+            return false;
+        });
+        return list;
     }
 
     @Override

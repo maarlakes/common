@@ -29,7 +29,8 @@ public class DefaultEventDispatcher implements EventDispatcher {
 
     @Override
     public <E> void dispatch(@Nonnull EventInvoker invoker, @Nonnull E event) {
-        if (invoker.supportedAsync()) {
+        final EventDispatch annotation = invoker.getAnnotation(EventDispatch.class);
+        if (annotation != null && annotation.async()) {
             this.executor.get().execute(() -> invoker.invoke(event));
         } else {
             invoker.invoke(event);

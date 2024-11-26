@@ -5,8 +5,6 @@ import cn.maarlakes.common.utils.MethodUtils;
 import jakarta.annotation.Nonnull;
 
 import java.lang.reflect.Method;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -84,12 +82,7 @@ public class OrderedComparator implements Comparator<Object> {
         }
         if (SPRING_ORDER_TYPE != null && SPRING_ORDER_TYPE.isAssignableFrom(obj.getClass())) {
             try {
-                final Method method = obj.getClass().getMethod("getOrder");
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    method.setAccessible(true);
-                    return null;
-                });
-                return (Integer) method.invoke(obj);
+                return MethodUtils.invoke(obj.getClass().getMethod("getOrder"), new Object[0]);
             } catch (Exception ignored) {
                 return null;
             }

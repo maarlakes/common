@@ -36,8 +36,8 @@ public class NettyAsyncHttpClient implements HttpClient {
 
     @Nonnull
     @Override
-    public CompletionStage<? extends Response> execute(@Nonnull Request request) {
-        return this.client.executeRequest(toBuilder(request))
+    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
+        return this.client.executeRequest(toBuilder(request, config))
                 .toCompletableFuture()
                 .exceptionally(error -> {
                     throw new HttpClientException(error.getMessage(), error);
@@ -45,7 +45,7 @@ public class NettyAsyncHttpClient implements HttpClient {
                 .thenApply(DefaultResponse::new);
     }
 
-    private static RequestBuilder toBuilder(@Nonnull Request request) {
+    private static RequestBuilder toBuilder(@Nonnull Request request, RequestConfig config) {
         final RequestBuilder builder = toBuilder(request.getMethod(), request.getUri().toString());
         if (!request.getHeaders().isEmpty()) {
             for (Header header : request.getHeaders()) {
@@ -97,6 +97,15 @@ public class NettyAsyncHttpClient implements HttpClient {
                 builder.setHeader(request.getBody().getContentTypeHeader().getName(), request.getBody().getContentTypeHeader().getValues());
             }
         }
+        if (config != null) {
+            builder.setFollowRedirect(config.isRedirectsEnabled());
+            if (config.getResponseTimeout() != null) {
+                builder.setReadTimeout((int) config.getResponseTimeout().toMillis());
+            }
+            if (config.getRequestTimeout() != null) {
+                builder.setRequestTimeout((int) config.getRequestTimeout().toMillis());
+            }
+        }
         return builder;
     }
 
@@ -144,7 +153,11 @@ public class NettyAsyncHttpClient implements HttpClient {
         @Nonnull
         @Override
         public ResponseBody getBody() {
-            return new ByteArrayResponseBody(this.response.getResponseBodyAsBytes(), Optional.ofNullable(this.response.getContentType()).map(ContentType::parse).orElse(null));
+            return new ByteArrayResponseBody(
+                    this.response.getResponseBodyAsBytes(),
+                    Optional.ofNullable(this.response.getContentType()).map(ContentType::parse).orElse(null),
+                    this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
+            );
         }
 
         @Override

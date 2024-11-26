@@ -3,16 +3,14 @@ package cn.maarlakes.common.http;
 import cn.maarlakes.common.http.body.BodyUtils;
 import cn.maarlakes.common.http.body.UrlEncodedFormEntityBody;
 import cn.maarlakes.common.utils.CollectionUtils;
+import cn.maarlakes.common.utils.Lazy;
 import cn.maarlakes.common.utils.StreamUtils;
 import jakarta.annotation.Nonnull;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.SocketAddress;
-import java.net.URI;
-import java.net.URL;
+import java.net.*;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,22 +37,32 @@ public class JdkHttpClient implements HttpClient {
 
     @Nonnull
     @Override
-    public CompletionStage<? extends Response> execute(@Nonnull Request request) {
+    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
         return CompletableFuture.supplyAsync(() -> {
             HttpURLConnection connection = null;
             try {
                 final URL url = toUrl(request);
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setDoInput(true);
-                connection.setInstanceFollowRedirects(true);
+                connection.setInstanceFollowRedirects(config == null || config.isRedirectsEnabled());
                 connection.setRequestMethod(request.getMethod().name());
+                if (config != null) {
+                    if (config.getConnectTimeout() != null) {
+                        connection.setConnectTimeout((int) config.getConnectTimeout().toMillis());
+                    } else if (config.getRequestTimeout() != null) {
+                        connection.setConnectTimeout((int) config.getRequestTimeout().toMillis());
+                    }
+                    if (config.getResponseTimeout() != null) {
+                        connection.setReadTimeout((int) config.getResponseTimeout().toMillis());
+                    }
+                }
                 if (!request.getHeaders().isEmpty()) {
                     for (Header header : request.getHeaders()) {
                         connection.setRequestProperty(header.getName(), header.get());
                     }
                 }
                 if (CollectionUtils.isNotEmpty(request.getCookies())) {
-                    connection.setRequestProperty("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
+                    connection.setRequestProperty(HttpHeaderNames.COOKIE, request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
                 }
                 RequestBody<?> body = request.getBody();
                 if (body == null && CollectionUtils.isNotEmpty(request.getFormParams())) {
@@ -62,7 +70,7 @@ public class JdkHttpClient implements HttpClient {
                 }
                 if (body != null) {
                     connection.setDoOutput(true);
-                    connection.setRequestProperty("Content-Type", body.getContentTypeHeader().get());
+                    connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE, body.getContentTypeHeader().get());
                     try (OutputStream out = connection.getOutputStream()) {
                         body.writeTo(out);
                     }
@@ -70,11 +78,11 @@ public class JdkHttpClient implements HttpClient {
                 connection.connect();
                 if (connection.getResponseCode() == 200) {
                     try (InputStream in = connection.getInputStream()) {
-                        return new DefaultResponse(connection.getResponseCode(), connection.getResponseMessage(), StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
+                        return new DefaultResponse(url, connection.getResponseCode(), connection.getResponseMessage(), StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
                     }
                 }
                 try (InputStream in = connection.getErrorStream()) {
-                    return new DefaultResponse(connection.getResponseCode(), connection.getResponseMessage(), in == null ? null : StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
+                    return new DefaultResponse(url, connection.getResponseCode(), connection.getResponseMessage(), in == null ? null : StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
                 }
             } catch (Exception e) {
                 throw new HttpClientException(e.getMessage(), e);
@@ -100,11 +108,11 @@ public class JdkHttpClient implements HttpClient {
         final String url = request.getUri().toString();
         if (url.contains("?")) {
             if (url.endsWith("&")) {
-                return new URL(url + BodyUtils.formatParams(request.getQueryParams()));
+                return new URL(url + BodyUtils.formatParamsEncode(request.getQueryParams()));
             }
-            return new URL(url + "&" + BodyUtils.formatParams(request.getQueryParams()));
+            return new URL(url + "&" + BodyUtils.formatParamsEncode(request.getQueryParams()));
         }
-        return new URL(url + "?" + BodyUtils.formatParams(request.getQueryParams()));
+        return new URL(url + "?" + BodyUtils.formatParamsEncode(request.getQueryParams()));
     }
 
     private HttpHeaders toHeaders(final Map<String, List<String>> map) {
@@ -115,19 +123,28 @@ public class JdkHttpClient implements HttpClient {
     }
 
     private static class DefaultResponse implements Response {
+        private final Lazy<SocketAddress> socketAddress;
         private final int statusCode;
         private final String statusText;
         private final URI uri;
         private final HttpHeaders headers;
         private final ResponseBody body;
 
-        private DefaultResponse(int statusCode, String statusText, byte[] body, URI uri, HttpHeaders headers) {
+        private DefaultResponse(URL url, int statusCode, String statusText, byte[] body, URI uri, HttpHeaders headers) {
             this.statusCode = statusCode;
             this.statusText = statusText;
             this.uri = uri;
             this.headers = headers;
 
-            this.body = new ByteArrayResponseBody(body == null ? new byte[0] : body, Optional.ofNullable(this.headers.getHeader("content-type").get()).map(ContentType::parse).orElse(null));
+            this.body = new ByteArrayResponseBody(
+                    body == null ? new byte[0] : body,
+                    Optional.ofNullable(this.headers.getHeader(HttpHeaderNames.CONTENT_TYPE).get()).map(ContentType::parse).orElse(null),
+                    headers.getHeader(HttpHeaderNames.CONTENT_ENCODING)
+            );
+            this.socketAddress = Lazy.of(() -> {
+                final int port = url.getPort();
+                return new InetSocketAddress(url.getHost(), port == -1 ? url.getDefaultPort() : port);
+            });
         }
 
         @Override
@@ -185,7 +202,7 @@ public class JdkHttpClient implements HttpClient {
 
         @Override
         public SocketAddress getRemoteAddress() {
-            return null;
+            return this.socketAddress.get();
         }
     }
 }

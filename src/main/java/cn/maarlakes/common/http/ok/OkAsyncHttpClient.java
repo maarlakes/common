@@ -39,7 +39,7 @@ public class OkAsyncHttpClient implements HttpClient {
 
     @Nonnull
     @Override
-    public CompletionStage<? extends Response> execute(@Nonnull Request request) {
+    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
         try {
             final HttpUrl.Builder builder = Objects.requireNonNull(HttpUrl.get(request.getUri())).newBuilder();
             if (CollectionUtils.isNotEmpty(request.getQueryParams())) {
@@ -56,7 +56,7 @@ public class OkAsyncHttpClient implements HttpClient {
                 }
             }
             final List<cn.maarlakes.common.http.Cookie> responseCookies = new ArrayList<>();
-            final OkHttpClient client = this.getClient(request, responseCookies);
+            final OkHttpClient client = this.getClient(request, responseCookies, config);
             final CompletableFuture<Response> future = new CompletableFuture<>();
             client.newCall(requestBuilder.build()).enqueue(new Callback() {
                 @Override
@@ -77,9 +77,9 @@ public class OkAsyncHttpClient implements HttpClient {
         }
     }
 
-    private OkHttpClient getClient(@Nonnull Request request, final List<cn.maarlakes.common.http.Cookie> responseCookies) {
+    private OkHttpClient getClient(@Nonnull Request request, final List<cn.maarlakes.common.http.Cookie> responseCookies, RequestConfig config) {
         final List<? extends cn.maarlakes.common.http.Cookie> cookies = request.getCookies();
-        return client.newBuilder().cookieJar(new CookieJar() {
+        final OkHttpClient.Builder builder = client.newBuilder().cookieJar(new CookieJar() {
             @Override
             public void saveFromResponse(@Nonnull HttpUrl httpUrl, @Nonnull List<Cookie> list) {
                 if (CollectionUtils.isNotEmpty(list)) {
@@ -127,7 +127,19 @@ public class OkAsyncHttpClient implements HttpClient {
                 }
                 return list;
             }
-        }).build();
+        });
+        if (config != null) {
+            if (config.getConnectTimeout() != null) {
+                builder.connectTimeout(config.getConnectTimeout());
+            }
+            if (config.getRequestTimeout() != null) {
+                builder.writeTimeout(config.getRequestTimeout());
+            }
+            if (config.getResponseTimeout() != null) {
+                builder.readTimeout(config.getResponseTimeout());
+            }
+        }
+        return builder.build();
     }
 
     private static RequestBody toRequestBody(@Nonnull Request request) throws Exception {
@@ -184,9 +196,13 @@ public class OkAsyncHttpClient implements HttpClient {
             this.bodyFactory = Lazy.of(() -> {
                 final okhttp3.ResponseBody body = response.body();
                 if (body == null) {
-                    return new ByteArrayResponseBody(new byte[0], null);
+                    return new ByteArrayResponseBody(new byte[0], null, null);
                 }
-                return new ByteArrayResponseBody(body.bytes(), Optional.ofNullable(body.contentType()).map(MediaType::toString).map(ContentType::parse).orElse(null));
+                return new ByteArrayResponseBody(
+                        body.bytes(),
+                        Optional.ofNullable(body.contentType()).map(MediaType::toString).map(ContentType::parse).orElse(null),
+                        this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
+                );
             });
         }
 

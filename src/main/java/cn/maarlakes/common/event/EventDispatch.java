@@ -10,8 +10,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Inherited
 @Documented
 @Retention(RUNTIME)
-@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
-public @interface EventListener {
+@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE, ElementType.TYPE})
+public @interface EventDispatch {
 
-    Class<?>[] events() default {};
+    boolean async() default false;
 }

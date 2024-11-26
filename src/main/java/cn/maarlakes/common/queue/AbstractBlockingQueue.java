@@ -1,5 +1,6 @@
 package cn.maarlakes.common.queue;
 
+import cn.maarlakes.common.utils.RateLimiter;
 import jakarta.annotation.Nonnull;
 
 import java.io.Closeable;
@@ -20,9 +21,11 @@ public abstract class AbstractBlockingQueue<T> extends AbstractTopicQueue<T> imp
 
     protected final AtomicInteger status = new AtomicInteger(STOPPED);
     private final AtomicReference<Thread> mainThread = new AtomicReference<>();
+    private final RateLimiter rateLimiter;
 
-    protected AbstractBlockingQueue(Executor executor) {
+    protected AbstractBlockingQueue(Executor executor, RateLimiter rateLimiter) {
         this.executor = executor;
+        this.rateLimiter = rateLimiter;
     }
 
     @Override
@@ -36,6 +39,12 @@ public abstract class AbstractBlockingQueue<T> extends AbstractTopicQueue<T> imp
             final Thread thread = new Thread(() -> {
                 while (this.status.get() == STARTED) {
                     try {
+                        if (this.rateLimiter != null) {
+                            this.rateLimiter.acquire();
+                        }
+                        if (this.status.get() != STARTED) {
+                            break;
+                        }
                         final DefaultQueueContext<T> context = new DefaultQueueContext<>(this.name(), this.take());
                         this.executor.execute(() -> this.onMessage(context));
                     } catch (InterruptedException e) {
