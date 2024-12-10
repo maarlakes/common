@@ -19,7 +19,7 @@ public final class ArrayUtils {
             type = item.getClass();
             break;
         }
-        if (type == null){
+        if (type == null) {
             throw new IllegalArgumentException("iterable is null or empty");
         }
         final Class<?> clazz = type;

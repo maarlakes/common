@@ -614,7 +614,6 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     }
 
     @Nonnull
-    @JsonCreator
     public static DataSize parse(@Nonnull CharSequence text, NumberFormat format) {
         final String value = text.toString().trim();
         try {
