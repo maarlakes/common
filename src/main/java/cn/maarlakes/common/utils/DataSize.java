@@ -25,6 +25,16 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     private final NumberFormat baseFormat;
 
     public static final DataSize ZERO = new DataSize(BigDecimal.ZERO);
+//    public static final DataSize BYTE = DataSize.ofBytes(1L);
+//    public static final DataSize KILOBYTE = DataSize.ofKilobytes(1L);
+//    public static final DataSize MEGABYTE = DataSize.ofMegabyte(1L);
+//    public static final DataSize GIGABYTE = DataSize.ofGigabyte(1L);
+//    private static final DataSize TERABYTE = DataSize.ofTerabyte(1L);
+//    private static final DataSize PETABYTE = DataSize.ofPetabyte(1L);
+//    private static final DataSize EXABYTE = DataSize.ofExabyte(1L);
+//    private static final DataSize ZETTABYTE = DataSize.ofZettabyte(1L);
+//    private static final DataSize YOTTABYTE = DataSize.ofYottabyte(1L);
+//    private static final DataSize BRONTOBYTE = DataSize.ofBrontobyte(1L);
 
     private DataSize(@Nonnull BigDecimal bytes) {
         this.bytes = bytes;
@@ -81,108 +91,108 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     }
 
     @Nonnull
-    public DataSize plusMegabytes(@Nonnull BigDecimal size) {
+    public DataSize plusMegabyte(@Nonnull BigDecimal size) {
         return this.plus(size, Unit.MB);
     }
 
     @Nonnull
-    public DataSize plusMegabytes(double size) {
-        return this.plusMegabytes(BigDecimal.valueOf(size));
+    public DataSize plusMegabyte(double size) {
+        return this.plusMegabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusMegabytes(long size) {
-        return this.plusMegabytes(BigDecimal.valueOf(size));
+    public DataSize plusMegabyte(long size) {
+        return this.plusMegabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusGigabytes(@Nonnull BigDecimal size) {
+    public DataSize plusGigabyte(@Nonnull BigDecimal size) {
         return this.plus(size, Unit.GB);
     }
 
     @Nonnull
-    public DataSize plusGigabytes(double size) {
-        return this.plusGigabytes(BigDecimal.valueOf(size));
+    public DataSize plusGigabyte(double size) {
+        return this.plusGigabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusGigabytes(long size) {
-        return this.plusGigabytes(BigDecimal.valueOf(size));
+    public DataSize plusGigabyte(long size) {
+        return this.plusGigabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusTerabytes(@Nonnull BigDecimal size) {
+    public DataSize plusTerabyte(@Nonnull BigDecimal size) {
         return this.plus(size, Unit.TB);
     }
 
     @Nonnull
-    public DataSize plusTerabytes(double size) {
-        return this.plusTerabytes(BigDecimal.valueOf(size));
+    public DataSize plusTerabyte(double size) {
+        return this.plusTerabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusTerabytes(long size) {
-        return this.plusTerabytes(BigDecimal.valueOf(size));
+    public DataSize plusTerabyte(long size) {
+        return this.plusTerabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusPetabytes(@Nonnull BigDecimal size) {
+    public DataSize plusPetabyte(@Nonnull BigDecimal size) {
         return this.plus(size, Unit.PB);
     }
 
     @Nonnull
-    public DataSize plusPetabytes(double size) {
-        return this.plusPetabytes(BigDecimal.valueOf(size));
+    public DataSize plusPetabyte(double size) {
+        return this.plusPetabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusPetabytes(long size) {
-        return this.plusPetabytes(BigDecimal.valueOf(size));
+    public DataSize plusPetabyte(long size) {
+        return this.plusPetabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusExabytes(@Nonnull BigDecimal size) {
+    public DataSize plusExabyte(@Nonnull BigDecimal size) {
         return this.plus(size, Unit.EB);
     }
 
     @Nonnull
-    public DataSize plusExabytes(double size) {
-        return this.plusExabytes(BigDecimal.valueOf(size));
+    public DataSize plusExabyte(double size) {
+        return this.plusExabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusExabytes(long size) {
-        return this.plusExabytes(BigDecimal.valueOf(size));
+    public DataSize plusExabyte(long size) {
+        return this.plusExabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusZettabytes(@Nonnull BigDecimal size) {
+    public DataSize plusZettabyte(@Nonnull BigDecimal size) {
         return this.plus(size, Unit.ZB);
     }
 
     @Nonnull
-    public DataSize plusZettabytes(double size) {
-        return this.plusZettabytes(BigDecimal.valueOf(size));
+    public DataSize plusZettabyte(double size) {
+        return this.plusZettabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusZettabytes(long size) {
-        return this.plusZettabytes(BigDecimal.valueOf(size));
+    public DataSize plusZettabyte(long size) {
+        return this.plusZettabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusYottabytes(@Nonnull BigDecimal size) {
+    public DataSize plusYottabyte(@Nonnull BigDecimal size) {
         return this.plus(size, Unit.YB);
     }
 
     @Nonnull
-    public DataSize plusYottabytes(double size) {
-        return this.plusYottabytes(BigDecimal.valueOf(size));
+    public DataSize plusYottabyte(double size) {
+        return this.plusYottabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize plusYottabytes(long size) {
-        return this.plusYottabytes(BigDecimal.valueOf(size));
+    public DataSize plusYottabyte(long size) {
+        return this.plusYottabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
@@ -226,108 +236,108 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     }
 
     @Nonnull
-    public DataSize minusMegabytes(@Nonnull BigDecimal size) {
+    public DataSize minusMegabyte(@Nonnull BigDecimal size) {
         return this.minus(size, Unit.MB);
     }
 
     @Nonnull
-    public DataSize minusMegabytes(double size) {
-        return this.minusMegabytes(BigDecimal.valueOf(size));
+    public DataSize minusMegabyte(double size) {
+        return this.minusMegabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusMegabytes(long size) {
-        return this.minusMegabytes(BigDecimal.valueOf(size));
+    public DataSize minusMegabyte(long size) {
+        return this.minusMegabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusGigabytes(@Nonnull BigDecimal size) {
+    public DataSize minusGigabyte(@Nonnull BigDecimal size) {
         return this.minus(size, Unit.GB);
     }
 
     @Nonnull
-    public DataSize minusGigabytes(double size) {
-        return this.minusGigabytes(BigDecimal.valueOf(size));
+    public DataSize minusGigabyte(double size) {
+        return this.minusGigabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusGigabytes(long size) {
-        return this.minusGigabytes(BigDecimal.valueOf(size));
+    public DataSize minusGigabyte(long size) {
+        return this.minusGigabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusTerabytes(@Nonnull BigDecimal size) {
+    public DataSize minusTerabyte(@Nonnull BigDecimal size) {
         return this.minus(size, Unit.TB);
     }
 
     @Nonnull
-    public DataSize minusTerabytes(double size) {
-        return this.minusTerabytes(BigDecimal.valueOf(size));
+    public DataSize minusTerabyte(double size) {
+        return this.minusTerabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusTerabytes(long size) {
-        return this.minusTerabytes(BigDecimal.valueOf(size));
+    public DataSize minusTerabyte(long size) {
+        return this.minusTerabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusPetabytes(@Nonnull BigDecimal size) {
+    public DataSize minusPetabyte(@Nonnull BigDecimal size) {
         return this.minus(size, Unit.PB);
     }
 
     @Nonnull
-    public DataSize minusPetabytes(double size) {
-        return this.minusPetabytes(BigDecimal.valueOf(size));
+    public DataSize minusPetabyte(double size) {
+        return this.minusPetabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusPetabytes(long size) {
-        return this.minusPetabytes(BigDecimal.valueOf(size));
+    public DataSize minusPetabyte(long size) {
+        return this.minusPetabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusExabytes(@Nonnull BigDecimal size) {
+    public DataSize minusExabyte(@Nonnull BigDecimal size) {
         return this.minus(size, Unit.EB);
     }
 
     @Nonnull
-    public DataSize minusExabytes(double size) {
-        return this.minusExabytes(BigDecimal.valueOf(size));
+    public DataSize minusExabyte(double size) {
+        return this.minusExabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusExabytes(long size) {
-        return this.minusExabytes(BigDecimal.valueOf(size));
+    public DataSize minusExabyte(long size) {
+        return this.minusExabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusZettabytes(@Nonnull BigDecimal size) {
+    public DataSize minusZettabyte(@Nonnull BigDecimal size) {
         return this.minus(size, Unit.ZB);
     }
 
     @Nonnull
-    public DataSize minusZettabytes(double size) {
-        return this.minusZettabytes(BigDecimal.valueOf(size));
+    public DataSize minusZettabyte(double size) {
+        return this.minusZettabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusZettabytes(long size) {
-        return this.minusZettabytes(BigDecimal.valueOf(size));
+    public DataSize minusZettabyte(long size) {
+        return this.minusZettabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusYottabytes(@Nonnull BigDecimal size) {
+    public DataSize minusYottabyte(@Nonnull BigDecimal size) {
         return this.minus(size, Unit.YB);
     }
 
     @Nonnull
-    public DataSize minusYottabytes(double size) {
-        return this.minusYottabytes(BigDecimal.valueOf(size));
+    public DataSize minusYottabyte(double size) {
+        return this.minusYottabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
-    public DataSize minusYottabytes(long size) {
-        return this.minusYottabytes(BigDecimal.valueOf(size));
+    public DataSize minusYottabyte(long size) {
+        return this.minusYottabyte(BigDecimal.valueOf(size));
     }
 
     @Nonnull
@@ -346,37 +356,37 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     }
 
     @Nonnull
-    public BigDecimal toMegabytes() {
+    public BigDecimal toMegabyte() {
         return this.toSize(Unit.MB);
     }
 
     @Nonnull
-    public BigDecimal toGigabytes() {
+    public BigDecimal toGigabyte() {
         return this.toSize(Unit.GB);
     }
 
     @Nonnull
-    public BigDecimal toTerabytes() {
+    public BigDecimal toTerabyte() {
         return this.toSize(Unit.TB);
     }
 
     @Nonnull
-    public BigDecimal toPetabytes() {
+    public BigDecimal toPetabyte() {
         return this.toSize(Unit.PB);
     }
 
     @Nonnull
-    public BigDecimal toExabytes() {
+    public BigDecimal toExabyte() {
         return this.toSize(Unit.EB);
     }
 
     @Nonnull
-    public BigDecimal toZettabytes() {
+    public BigDecimal toZettabyte() {
         return this.toSize(Unit.ZB);
     }
 
     @Nonnull
-    public BigDecimal toYottabytes() {
+    public BigDecimal toYottabyte() {
         return this.toSize(Unit.YB);
     }
 
@@ -488,108 +498,108 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     }
 
     @Nonnull
-    public static DataSize ofMegabytes(@Nonnull BigDecimal amount) {
+    public static DataSize ofMegabyte(@Nonnull BigDecimal amount) {
         return of(amount, Unit.MB);
     }
 
     @Nonnull
-    public static DataSize ofMegabytes(long amount) {
-        return ofMegabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofMegabyte(long amount) {
+        return ofMegabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofMegabytes(double amount) {
-        return ofMegabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofMegabyte(double amount) {
+        return ofMegabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofGigabytes(@Nonnull BigDecimal amount) {
+    public static DataSize ofGigabyte(@Nonnull BigDecimal amount) {
         return of(amount, Unit.GB);
     }
 
     @Nonnull
-    public static DataSize ofGigabytes(long amount) {
-        return ofGigabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofGigabyte(long amount) {
+        return ofGigabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofGigabytes(double amount) {
-        return ofGigabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofGigabyte(double amount) {
+        return ofGigabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofTerabytes(@Nonnull BigDecimal amount) {
+    public static DataSize ofTerabyte(@Nonnull BigDecimal amount) {
         return of(amount, Unit.TB);
     }
 
     @Nonnull
-    public static DataSize ofTerabytes(long amount) {
-        return ofTerabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofTerabyte(long amount) {
+        return ofTerabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofTerabytes(double amount) {
-        return ofTerabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofTerabyte(double amount) {
+        return ofTerabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofPetabytes(@Nonnull BigDecimal amount) {
+    public static DataSize ofPetabyte(@Nonnull BigDecimal amount) {
         return of(amount, Unit.PB);
     }
 
     @Nonnull
-    public static DataSize ofPetabytes(long amount) {
-        return ofPetabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofPetabyte(long amount) {
+        return ofPetabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofPetabytes(double amount) {
-        return ofPetabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofPetabyte(double amount) {
+        return ofPetabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofExabytes(@Nonnull BigDecimal amount) {
+    public static DataSize ofExabyte(@Nonnull BigDecimal amount) {
         return of(amount, Unit.EB);
     }
 
     @Nonnull
-    public static DataSize ofExabytes(long amount) {
-        return ofExabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofExabyte(long amount) {
+        return ofExabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofExabytes(double amount) {
-        return ofExabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofExabyte(double amount) {
+        return ofExabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofZettabytes(@Nonnull BigDecimal amount) {
+    public static DataSize ofZettabyte(@Nonnull BigDecimal amount) {
         return of(amount, Unit.ZB);
     }
 
     @Nonnull
-    public static DataSize ofZettabytes(long amount) {
-        return ofZettabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofZettabyte(long amount) {
+        return ofZettabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofZettabytes(double amount) {
-        return ofZettabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofZettabyte(double amount) {
+        return ofZettabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofYottabytes(@Nonnull BigDecimal amount) {
+    public static DataSize ofYottabyte(@Nonnull BigDecimal amount) {
         return of(amount, Unit.YB);
     }
 
     @Nonnull
-    public static DataSize ofYottabytes(long amount) {
-        return ofYottabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofYottabyte(long amount) {
+        return ofYottabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
-    public static DataSize ofYottabytes(double amount) {
-        return ofYottabytes(BigDecimal.valueOf(amount));
+    public static DataSize ofYottabyte(double amount) {
+        return ofYottabyte(BigDecimal.valueOf(amount));
     }
 
     @Nonnull
@@ -618,10 +628,11 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
         final String value = text.toString().trim();
         try {
             final String unitName = getUnitName(value);
+            final String number = value.substring(0, value.length() - unitName.length()).trim();
             if (format != null) {
-                return of(new BigDecimal(format.parse(value.substring(0, value.length() - unitName.length()).trim()).toString()), valueOfUnit(unitName));
+                return of(new BigDecimal(format.parse(number).toString()), valueOfUnit(unitName));
             }
-            return of(new BigDecimal(value.substring(0, value.length() - unitName.length()).trim()), valueOfUnit(unitName));
+            return of(new BigDecimal(number), valueOfUnit(unitName));
         } catch (Exception e) {
             throw new DataSizeFormatException(value, e);
         }

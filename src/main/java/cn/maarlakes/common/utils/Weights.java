@@ -49,6 +49,6 @@ public final class Weights<T> implements Serializable {
 
     @Override
     public String toString() {
-        return this.target.toString() + ": " + this.weight;
+        return this.target + ": " + this.weight;
     }
 }
