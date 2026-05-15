@@ -12,4 +12,7 @@ public interface EventListenerRegistrar {
     <L> void unregister(@Nonnull L listener);
 
     void unregisterAll();
+
+    @Nonnull
+    EventPublisher publisher();
 }

@@ -7,7 +7,6 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 /**
  * @author linjpxc
  */
-@Inherited
 @Documented
 @Retention(RUNTIME)
 @Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
