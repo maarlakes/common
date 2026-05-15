@@ -8,36 +8,38 @@ import jakarta.annotation.Nonnull;
 public interface ChainFactory {
 
     @Nonnull
-    <H, R> H createChain(@Nonnull Class<H> type, @Nonnull ChainContext<H, R> context);
+    <H, R> Chain<H, R> createChain(@Nonnull Class<H> type, @Nonnull ChainInvocationFactory factory);
 
     @Nonnull
-    default <H> H createEmptyContextChain(@Nonnull Class<H> type) {
-        return this.createChain(type, EmptyChainContext.getInstance());
+    <H> H createChain(@Nonnull Class<H> type, @Nonnull InvocationHandlerFactory factory);
+
+    @Nonnull
+    default <H> H createFirstResultChain(@Nonnull Class<H> type) {
+        return this.createFirstResultChain(type, false);
     }
 
     @Nonnull
-    default <H> H createFirstContextChain(@Nonnull Class<H> type) {
-        return this.createChain(type, new FirstChainContext<>());
+    default <H> H createFirstResultChain(@Nonnull Class<H> type, boolean isReverse) {
+        return this.createChain(type, new FirstResultInvocationHandlerFactory(isReverse));
     }
 
     @Nonnull
-    <H, R> H createReverseChain(@Nonnull Class<H> type, @Nonnull ChainContext<H, R> context);
-
-    @Nonnull
-    default <H> H createEmptyContextReverseChain(@Nonnull Class<H> type) {
-        return this.createReverseChain(type, EmptyChainContext.getInstance());
+    default <H> H createLastResultChain(@Nonnull Class<H> type) {
+        return this.createLastResultChain(type, false);
     }
 
     @Nonnull
-    default <H> H createFirstContextReverseChain(@Nonnull Class<H> type) {
-        return this.createReverseChain(type, new FirstChainContext<>());
+    default <H> H createLastResultChain(@Nonnull Class<H> type, boolean isReverse) {
+        return this.createChain(type, new LastResultInvocationHandlerFactory(isReverse));
     }
 
-    <H> H createNoneResultChain(@Nonnull Class<H> type);
+    @Nonnull
+    default <H> H createNoneResultChain(@Nonnull Class<H> type) {
+        return this.createNoneResultChain(type, false);
+    }
 
-    <H> H createFirstResultChain(@Nonnull Class<H> type);
-
-    <H> H createNoneResultReverseChain(@Nonnull Class<H> type);
-
-    <H> H createFirstResultReserveChain(@Nonnull Class<H> type);
+    @Nonnull
+    default <H> H createNoneResultChain(@Nonnull Class<H> type, boolean isReverse) {
+        return this.createChain(type, new NoneResultInvocationHandlerFactory(isReverse));
+    }
 }
