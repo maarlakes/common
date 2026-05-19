@@ -15,14 +15,14 @@ public interface CacheableTokenRepository<T extends AppToken<A, V>, A, V> extend
 
     @Nonnull
     default List<T> getTokens() {
-        return this.getTokensAsync().toCompletableFuture().join();
+        return Tokens.join(this.getTokensAsync());
     }
 
     @Nonnull
     CompletionStage<Void> clearAsync();
 
     default void clear() {
-        this.clearAsync().toCompletableFuture().join();
+        Tokens.join(this.clearAsync());
     }
 
     @Nonnull
@@ -31,13 +31,13 @@ public interface CacheableTokenRepository<T extends AppToken<A, V>, A, V> extend
     }
 
     default void remove(@Nonnull T token) {
-        this.removeAsync(token).toCompletableFuture().join();
+        Tokens.join(this.removeAsync(token));
     }
 
     @Nonnull
     CompletionStage<Void> removeAsync(@Nonnull A appId);
 
     default void remove(@Nonnull A appId) {
-        this.removeAsync(appId).toCompletableFuture().join();
+        Tokens.join(this.removeAsync(appId));
     }
 }

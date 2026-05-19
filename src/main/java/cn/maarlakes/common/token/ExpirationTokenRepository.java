@@ -15,7 +15,7 @@ public interface ExpirationTokenRepository<T extends ExpirationAppToken<A, V>, A
     CompletionStage<Void> removeExpiredTokenAsync();
 
     default void removeExpiredToken() {
-        this.removeExpiredTokenAsync().toCompletableFuture().join();
+        Tokens.join(this.removeExpiredTokenAsync());
     }
 
     @Nonnull
@@ -25,6 +25,6 @@ public interface ExpirationTokenRepository<T extends ExpirationAppToken<A, V>, A
 
     @Nonnull
     default List<T> getExpiredTokens() {
-        return this.getExpiredTokensAsync().toCompletableFuture().join();
+        return Tokens.join(this.getExpiredTokensAsync());
     }
 }

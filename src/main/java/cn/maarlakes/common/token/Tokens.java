@@ -2,10 +2,10 @@ package cn.maarlakes.common.token;
 
 import jakarta.annotation.Nonnull;
 
-import java.time.LocalDateTime;
-import java.util.concurrent.CompletableFuture;
+import java.time.Instant;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
 
 /**
  * @author linjpxc
@@ -15,30 +15,34 @@ public final class Tokens {
     }
 
     public static <T extends ExpirationAppToken<?, ?>> boolean isExpired(@Nonnull T token) {
-        return token.getExpirationTime().isBefore(LocalDateTime.now());
-    }
-
-    public static <T extends ExpirationAppToken<K, V>, K, V> CompletionStage<? extends T> autoRefreshAsync(
-            @Nonnull RefreshableTokenRepository<T, K, V> repository,
-            @Nonnull CompletionStage<? extends T> tokenFuture) {
-        return tokenFuture.thenCompose(token -> {
-            final CompletableFuture<? extends T> future;
-            if (isExpired(token)) {
-                future = (CompletableFuture<? extends T>) repository.refreshAsync(token);
-            } else {
-                future = CompletableFuture.completedFuture(token);
-            }
-            return future;
-        });
+        return token.getExpiresAt().isBefore(Instant.now());
     }
 
     public static TokenException newTokenException(@Nonnull Throwable exception) {
         if (exception instanceof TokenException) {
             return (TokenException) exception;
         }
-        if (exception instanceof CompletionException && exception.getCause() != null) {
-            return new TokenException(exception.getCause().getMessage(), exception.getCause());
+        Throwable cause = exception;
+        while (cause instanceof CompletionException || cause instanceof ExecutionException) {
+            if (cause.getCause() == null || cause.getCause() == cause) {
+                break;
+            }
+            cause = cause.getCause();
         }
-        return new TokenException(exception.getMessage(), exception);
+        if (cause instanceof TokenException) {
+            return (TokenException) cause;
+        }
+        return new TokenException(cause.getMessage(), cause);
+    }
+
+    public static <T> T join(@Nonnull CompletionStage<T> stage) {
+        try {
+            return stage.toCompletableFuture().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw newTokenException(e);
+        } catch (Exception e) {
+            throw newTokenException(e);
+        }
     }
 }

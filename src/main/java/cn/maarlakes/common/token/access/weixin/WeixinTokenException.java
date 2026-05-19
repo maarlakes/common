@@ -1,4 +1,4 @@
-package cn.maarlakes.common.token.weixin;
+package cn.maarlakes.common.token.access.weixin;
 
 import cn.maarlakes.common.token.TokenException;
 import jakarta.annotation.Nonnull;

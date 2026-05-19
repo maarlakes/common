@@ -2,7 +2,7 @@ package cn.maarlakes.common.token;
 
 import jakarta.annotation.Nonnull;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * @author linjpxc
@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 public interface ExpirationAppToken<A, T> extends AppToken<A, T> {
 
     @Nonnull
-    LocalDateTime getExpirationTime();
+    Instant getExpiresAt();
 
     default boolean isExpired() {
         return Tokens.isExpired(this);

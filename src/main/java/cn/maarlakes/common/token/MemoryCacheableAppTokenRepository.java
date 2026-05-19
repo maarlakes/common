@@ -2,18 +2,18 @@ package cn.maarlakes.common.token;
 
 import jakarta.annotation.Nonnull;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
 
 /**
  * @author linjpxc
  */
 public class MemoryCacheableAppTokenRepository<T extends AppToken<A, V>, A, V> implements CacheableTokenRepository<T, A, V> {
-    protected final ConcurrentMap<A, Object> cacheTokens = new ConcurrentHashMap<>();
+    protected final ConcurrentMap<A, CompletableFuture<T>> cacheTokens = new ConcurrentHashMap<>();
     protected final TokenFactory<T, A, V> tokenFactory;
 
     public MemoryCacheableAppTokenRepository(@Nonnull TokenFactory<T, A, V> tokenFactory) {
@@ -22,11 +22,17 @@ public class MemoryCacheableAppTokenRepository<T extends AppToken<A, V>, A, V> i
 
     @Nonnull
     @Override
-    @SuppressWarnings("unchecked")
     public CompletionStage<List<T>> getTokensAsync() {
-        return CompletableFuture.completedFuture(this.cacheTokens.values().stream().filter(item -> !(item instanceof CompletionStage<?>))
-                .map(item -> (T) item)
-                .collect(Collectors.toList()));
+        final List<T> tokens = new ArrayList<>();
+        for (CompletableFuture<T> future : this.cacheTokens.values()) {
+            if (future.isDone() && !future.isCompletedExceptionally()) {
+                final T token = future.getNow(null);
+                if (token != null) {
+                    tokens.add(token);
+                }
+            }
+        }
+        return CompletableFuture.completedFuture(tokens);
     }
 
     @Nonnull
@@ -39,7 +45,11 @@ public class MemoryCacheableAppTokenRepository<T extends AppToken<A, V>, A, V> i
     @Nonnull
     @Override
     public CompletionStage<Void> removeAsync(@Nonnull T token) {
-        this.cacheTokens.remove(token.getAppId(), token);
+        final CompletableFuture<T> future = this.cacheTokens.get(token.getAppId());
+        if (future != null && future.isDone() && !future.isCompletedExceptionally()
+                && token.equals(future.getNow(null))) {
+            this.cacheTokens.remove(token.getAppId(), future);
+        }
         return CompletableFuture.completedFuture(null);
     }
 
@@ -52,19 +62,17 @@ public class MemoryCacheableAppTokenRepository<T extends AppToken<A, V>, A, V> i
 
     @Nonnull
     @Override
-    @SuppressWarnings("unchecked")
     public CompletionStage<T> getTokenAsync(@Nonnull A appId) {
-        final Object result = this.cacheTokens.computeIfAbsent(appId, key -> this.tokenFactory.createToken(appId)
-                .thenApply(token -> {
-                    this.cacheTokens.put(key, token);
-                    return token;
-                }).exceptionally(error -> {
-                    this.cacheTokens.remove(key);
-                    throw Tokens.newTokenException(error);
-                }));
-        if (result instanceof CompletionStage) {
-            return (CompletionStage<T>) result;
-        }
-        return CompletableFuture.completedFuture((T) result);
+        return this.cacheTokens.computeIfAbsent(appId, key -> {
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            this.tokenFactory.createToken(key)
+                    .thenAccept(future::complete)
+                    .exceptionally(error -> {
+                        this.cacheTokens.remove(key, future);
+                        future.completeExceptionally(Tokens.newTokenException(error));
+                        return null;
+                    });
+            return future;
+        });
     }
 }

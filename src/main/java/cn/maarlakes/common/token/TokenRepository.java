@@ -14,10 +14,6 @@ public interface TokenRepository<T extends AppToken<A, V>, A, V> {
 
     @Nonnull
     default T getToken(@Nonnull A appId) {
-        try {
-            return this.getTokenAsync(appId).toCompletableFuture().get();
-        } catch (Exception e) {
-            throw Tokens.newTokenException(e);
-        }
+       return Tokens.join(this.getTokenAsync(appId));
     }
 }
