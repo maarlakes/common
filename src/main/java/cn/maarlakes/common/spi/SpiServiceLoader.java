@@ -18,7 +18,32 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
+ * 自定义 SPI 服务加载器，从 {@code META-INF/services/} 配置文件中发现和实例化服务提供者。
+ *
+ * <p>配置文件以服务接口的全限定名为文件名，每行一个实现类的全限定名，支持 {@code #} 注释，同名实现类只加载一次。</p>
+ *
+ * <p>提供者按 {@code @Order} 注解（或 Spring 的 {@code @Order}）排序，数值越小优先级越高。
+ * 可通过 {@link SpiService @SpiService} 注解控制实例的生命周期。</p>
+ *
+ * <p>两种加载模式：</p>
+ * <ul>
+ *   <li>{@link #load(Class) load} — 每次调用创建新的 loader 实例，{@code SINGLETON} 生命周期仅在同一 loader 实例内有效</li>
+ *   <li>{@link #loadShared(Class) loadShared} — 按 ClassLoader + 服务接口缓存 loader 实例，{@code SINGLETON} 跨调用复用</li>
+ * </ul>
+ *
+ * <pre>{@code
+ * // 配置文件: META-INF/services/com.example.MyService
+ * com.example.MyServiceImpl
+ * com.example.AnotherImpl  # 注释
+ *
+ * // 使用
+ * SpiServiceLoader<MyService> loader = SpiServiceLoader.loadShared(MyService.class);
+ * MyService service = loader.first();
+ * }</pre>
+ *
+ * @param <T> 服务接口类型
  * @author linjpxc
+ * @see SpiService
  */
 public final class SpiServiceLoader<T> implements Iterable<T> {
 
@@ -40,82 +65,162 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
         this.isShared = isShared;
     }
 
+    /**
+     * 是否存在可用的服务提供者。
+     */
     public boolean isEmpty() {
         return this.holders.get().isEmpty();
     }
 
+    /**
+     * 获取优先级最高的服务提供者。
+     *
+     * @throws SpiServiceException 如果没有可用的提供者
+     */
     @Nonnull
     public T first() {
         return this.firstOptional().orElseThrow(() -> new SpiServiceException("No service provider found for " + this.service.getName()));
     }
 
+    /**
+     * 获取指定子类型中优先级最高的服务提供者。
+     *
+     * @param serviceType 目标子类型
+     * @throws SpiServiceException 如果没有匹配的提供者
+     */
     @Nonnull
     public T first(@Nonnull Class<? extends T> serviceType) {
         return this.firstOptional(serviceType).orElseThrow(() -> new SpiServiceException("No service provider found for " + serviceType.getName()));
     }
 
+    /**
+     * 获取优先级最高的服务提供者，无则返回 {@link Optional#empty()}。
+     */
     @Nonnull
     public Optional<T> firstOptional() {
         return this.firstOptional(this.service);
     }
 
+    /**
+     * 获取指定子类型中优先级最高的服务提供者，无则返回 {@link Optional#empty()}。
+     *
+     * @param serviceType 目标子类型
+     */
     @Nonnull
     @SuppressWarnings("unchecked")
     public Optional<T> firstOptional(@Nonnull Class<? extends T> serviceType) {
         return (Optional<T>) this.stream(serviceType).findFirst();
     }
 
+    /**
+     * 获取优先级最低的服务提供者。
+     *
+     * @throws SpiServiceException 如果没有可用的提供者
+     */
     @Nonnull
     public T last() {
         return this.lastOptional().orElseThrow(() -> new SpiServiceException("No service provider found for " + this.service.getName()));
     }
 
+    /**
+     * 获取优先级最低的服务提供者，无则返回 {@link Optional#empty()}。
+     */
     @Nonnull
     public Optional<T> lastOptional() {
         return this.lastOptional(this.service);
     }
 
+    /**
+     * 获取指定子类型中优先级最低的服务提供者。
+     *
+     * @param serviceType 目标子类型
+     * @throws SpiServiceException 如果没有匹配的提供者
+     */
     @Nonnull
     public T last(@Nonnull Class<? extends T> serviceType) {
         return this.lastOptional(serviceType).orElseThrow(() -> new SpiServiceException("No service provider found for " + serviceType.getName()));
     }
 
+    /**
+     * 获取指定子类型中优先级最低的服务提供者，无则返回 {@link Optional#empty()}。
+     *
+     * @param serviceType 目标子类型
+     */
     @Nonnull
     @SuppressWarnings("unchecked")
     public Optional<T> lastOptional(@Nonnull Class<? extends T> serviceType) {
         return (Optional<T>) this.stream(serviceType, true).findFirst();
     }
 
+    /**
+     * 按优先级顺序（由低到高）返回所有服务提供者的迭代器。
+     */
     @Nonnull
     @Override
     public Iterator<T> iterator() {
         return this.stream().iterator();
     }
 
+    /**
+     * 按优先级顺序返回所有服务提供者的流。
+     */
     @Nonnull
     public Stream<T> stream() {
         return this.stream(this.service);
     }
 
+    /**
+     * 按优先级顺序返回指定子类型的服务提供者流。
+     *
+     * @param serviceType 目标子类型
+     */
     @SuppressWarnings("unchecked")
     public <S extends T> Stream<S> stream(@Nonnull Class<S> serviceType) {
         return (Stream<S>) this.stream(serviceType, false);
     }
 
+    /**
+     * 创建非共享的服务加载器，使用当前线程的上下文 ClassLoader。
+     *
+     * <p>每次调用创建新的 loader 实例，{@link SpiService.Lifecycle#SINGLETON SINGLETON} 生命周期
+     * 仅在同一 loader 实例内生效。如需跨调用复用单例，请使用 {@link #loadShared(Class)}。</p>
+     *
+     * @param service 服务接口类型
+     */
     @Nonnull
     public static <S> SpiServiceLoader<S> load(@Nonnull Class<S> service) {
         return load(service, Thread.currentThread().getContextClassLoader());
     }
 
+    /**
+     * 创建非共享的服务加载器，使用指定的 ClassLoader。
+     *
+     * @param service 服务接口类型
+     * @param loader  用于加载资源的 ClassLoader，为 null 时依次尝试 service 的 ClassLoader 和系统 ClassLoader
+     */
     @Nonnull
     public static <S> SpiServiceLoader<S> load(@Nonnull Class<S> service, ClassLoader loader) {
         return new SpiServiceLoader<>(service, loader, false);
     }
 
+    /**
+     * 获取共享的服务加载器，使用当前线程的上下文 ClassLoader。
+     *
+     * <p>按 ClassLoader + 服务接口缓存 loader 实例，{@link SpiService.Lifecycle#SINGLETON SINGLETON}
+     * 生命周期跨调用复用。无可用提供者时自动从缓存中移除。</p>
+     *
+     * @param service 服务接口类型
+     */
     public static <S> SpiServiceLoader<S> loadShared(@Nonnull Class<S> service) {
         return loadShared(service, Thread.currentThread().getContextClassLoader());
     }
 
+    /**
+     * 获取共享的服务加载器，使用指定的 ClassLoader。
+     *
+     * @param service 服务接口类型
+     * @param loader  用于加载资源的 ClassLoader，为 null 时使用系统 ClassLoader
+     */
     @SuppressWarnings("unchecked")
     public static <S> SpiServiceLoader<S> loadShared(@Nonnull Class<S> service, ClassLoader loader) {
         final ClassLoader cl = getClassLoader(service, loader);
