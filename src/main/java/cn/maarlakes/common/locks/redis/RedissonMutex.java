@@ -49,10 +49,10 @@ final class RedissonMutex implements Mutex {
     @Override
     public void lock() {
         if (this.leaseTimeMillis > 0) {
-            log.info("加锁 [{}]，leaseTime={}ms", this.key, this.leaseTimeMillis);
+            log.debug("加锁 [{}]，leaseTime={}ms", this.key, this.leaseTimeMillis);
             this.lock.lock(this.leaseTimeMillis, TimeUnit.MILLISECONDS);
         } else {
-            log.info("加锁 [{}]", this.key);
+            log.debug("加锁 [{}]", this.key);
             this.lock.lock();
         }
     }
@@ -60,10 +60,10 @@ final class RedissonMutex implements Mutex {
     @Override
     public void lockInterruptibly() throws InterruptedException {
         if (this.leaseTimeMillis > 0) {
-            log.info("可中断加锁 [{}]，leaseTime={}ms", this.key, this.leaseTimeMillis);
+            log.debug("可中断加锁 [{}]，leaseTime={}ms", this.key, this.leaseTimeMillis);
             this.lock.lockInterruptibly(this.leaseTimeMillis, TimeUnit.MILLISECONDS);
         } else {
-            log.info("可中断加锁 [{}]", this.key);
+            log.debug("可中断加锁 [{}]", this.key);
             this.lock.lockInterruptibly();
         }
     }
@@ -73,7 +73,7 @@ final class RedissonMutex implements Mutex {
         if (this.leaseTimeMillis > 0) {
             try {
                 final boolean acquired = this.lock.tryLock(0, this.leaseTimeMillis, TimeUnit.MILLISECONDS);
-                log.info("尝试加锁 [{}]，leaseTime={}ms：{}", this.key, this.leaseTimeMillis, acquired);
+                log.debug("尝试加锁 [{}]，leaseTime={}ms：{}", this.key, this.leaseTimeMillis, acquired);
                 return acquired;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -81,7 +81,7 @@ final class RedissonMutex implements Mutex {
             }
         }
         final boolean acquired = this.lock.tryLock();
-        log.info("尝试加锁 [{}]：{}", this.key, acquired);
+        log.debug("尝试加锁 [{}]：{}", this.key, acquired);
         return acquired;
     }
 
@@ -93,13 +93,13 @@ final class RedissonMutex implements Mutex {
         } else {
             acquired = this.lock.tryLock(time, unit);
         }
-        log.info("尝试加锁 [{}]，等待 {}{}：{}", this.key, time, unit, acquired);
+        log.debug("尝试加锁 [{}]，等待 {}{}：{}", this.key, time, unit, acquired);
         return acquired;
     }
 
     @Override
     public void unlock() {
-        log.info("解锁 [{}]", this.key);
+        log.debug("解锁 [{}]", this.key);
         this.lock.unlock();
     }
 

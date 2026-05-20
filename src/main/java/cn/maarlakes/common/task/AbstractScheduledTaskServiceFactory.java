@@ -21,7 +21,7 @@ public abstract class AbstractScheduledTaskServiceFactory implements ScheduledTa
     protected final Function1<String, Executor> executorFactory;
 
     protected AbstractScheduledTaskServiceFactory(@Nonnull List<? extends TaskExecutor<?>> taskExecutors) {
-        this(taskExecutors, r -> new ForkJoinPool());
+        this(taskExecutors, r -> ForkJoinPool.commonPool());
     }
 
     protected AbstractScheduledTaskServiceFactory(@Nonnull List<? extends TaskExecutor<?>> taskExecutors, @Nonnull Function1<String, Executor> executorFactory) {

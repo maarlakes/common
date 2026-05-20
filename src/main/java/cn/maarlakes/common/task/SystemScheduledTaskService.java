@@ -21,7 +21,7 @@ public class SystemScheduledTaskService<T> extends AbstractScheduledTaskService<
     private final ConcurrentMap<T, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
 
     public SystemScheduledTaskService(@Nonnull String taskName, @Nonnull List<? extends TaskExecutor<T>> taskExecutors) {
-        this(taskName, new ScheduledThreadPoolExecutor(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("schedule-task-" + taskName + "-")), taskExecutors, new ForkJoinPool());
+        this(taskName, new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("schedule-task-" + taskName + "-")), taskExecutors, ForkJoinPool.commonPool());
     }
 
     public SystemScheduledTaskService(@Nonnull String taskName, @Nonnull ScheduledExecutorService taskScheduler, @Nonnull List<? extends TaskExecutor<T>> taskExecutors) {

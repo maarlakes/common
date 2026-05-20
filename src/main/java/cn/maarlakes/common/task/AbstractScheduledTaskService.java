@@ -26,10 +26,10 @@ public abstract class AbstractScheduledTaskService<T> implements ScheduledTaskSe
         if (log.isDebugEnabled()) {
             log.debug("任务调度，任务名称：{}，任务内容：{}", this.getTaskName(), task);
         }
-        TaskExecutors.executeAsync(this.taskExecutors, new DefaultTaskContext(task), this.executor)
+        TaskExecutors.executeAsync(this.taskExecutors, new DefaultTaskContext<T>(this, task), this.executor)
                 .whenComplete((r, error) -> {
                     if (error != null && log.isErrorEnabled()) {
-                        log.error("任务执行异常，任务名称：{}，任务内容：{}", this.getTaskName(), task);
+                        log.error("任务执行异常，任务名称：{}，任务内容：{}", this.getTaskName(), task, error);
                     }
                 });
     }
@@ -37,18 +37,20 @@ public abstract class AbstractScheduledTaskService<T> implements ScheduledTaskSe
     @Nonnull
     protected abstract Logger log();
 
-    protected class DefaultTaskContext implements TaskContext<T> {
+    protected static class DefaultTaskContext<T> implements TaskContext<T> {
 
+        private final ScheduledTaskService<T> service;
         private final T task;
 
-        public DefaultTaskContext(@Nonnull T task) {
+        public DefaultTaskContext(@Nonnull ScheduledTaskService<T> service, @Nonnull T task) {
+            this.service = service;
             this.task = task;
         }
 
         @Nonnull
         @Override
         public ScheduledTaskService<T> getService() {
-            return AbstractScheduledTaskService.this;
+            return this.service;
         }
 
         @Override

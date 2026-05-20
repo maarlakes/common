@@ -10,7 +10,6 @@ import java.lang.annotation.*;
  *
  * @author linjpxc
  */
-@Inherited
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.ANNOTATION_TYPE, ElementType.METHOD})

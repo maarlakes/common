@@ -3,9 +3,9 @@ package cn.maarlakes.common.task;
 import jakarta.annotation.Nonnull;
 import org.aopalliance.intercept.MethodInvocation;
 
-import java.util.concurrent.locks.Lock;
-
 /**
+ * 忽略执行策略，直接返回 null。
+ *
  * @author linjpxc
  */
 public final class IgnoredSerialTaskExecuteStrategy implements SerialTaskExecuteStrategy {
@@ -19,7 +19,7 @@ public final class IgnoredSerialTaskExecuteStrategy implements SerialTaskExecute
     }
 
     @Override
-    public Object execute(String ignored, @Nonnull MethodInvocation invocation, @Nonnull Lock lock) {
+    public Object execute(String ignored, @Nonnull MethodInvocation invocation) {
         return null;
     }
 

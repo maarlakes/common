@@ -59,7 +59,7 @@ final class RedissonSemaphoreMutex implements Mutex {
                     this.semaphore.trySetPermits(1);
                     this.semaphore.acquire();
                     this.semaphore.clearExpire();
-                    log.info("信号量 [{}] 获取成功", this.key);
+                    log.debug("信号量 [{}] 获取成功", this.key);
                     return;
                 } catch (InterruptedException e) {
                     interrupted = true;
@@ -78,7 +78,7 @@ final class RedissonSemaphoreMutex implements Mutex {
         this.semaphore.trySetPermits(1);
         this.semaphore.acquire();
         this.semaphore.clearExpire();
-        log.info("信号量 [{}] 获取成功（可中断）", this.key);
+        log.debug("信号量 [{}] 获取成功（可中断）", this.key);
     }
 
     @Override
@@ -86,10 +86,10 @@ final class RedissonSemaphoreMutex implements Mutex {
         this.semaphore.trySetPermits(1);
         if (this.semaphore.tryAcquire(1)) {
             this.semaphore.clearExpire();
-            log.info("信号量 [{}] 尝试获取成功", this.key);
+            log.debug("信号量 [{}] 尝试获取成功", this.key);
             return true;
         }
-        log.info("信号量 [{}] 尝试获取失败", this.key);
+        log.debug("信号量 [{}] 尝试获取失败", this.key);
         return false;
     }
 
@@ -98,21 +98,21 @@ final class RedissonSemaphoreMutex implements Mutex {
         this.semaphore.trySetPermits(1);
         if (this.semaphore.tryAcquire(time, unit)) {
             this.semaphore.clearExpire();
-            log.info("信号量 [{}] 在 {}{} 内获取成功", this.key, time, unit);
+            log.debug("信号量 [{}] 在 {}{} 内获取成功", this.key, time, unit);
             return true;
         }
-        log.info("信号量 [{}] 在 {}{} 内获取超时", this.key, time, unit);
+        log.debug("信号量 [{}] 在 {}{} 内获取超时", this.key, time, unit);
         return false;
     }
 
     @Override
     public void unlock() {
         this.semaphore.release();
-        log.info("信号量 [{}] 已释放", this.key);
+        log.debug("信号量 [{}] 已释放", this.key);
         if (this.semaphore.tryAcquire()) {
             try {
                 this.semaphore.expire(this.idleTimeout);
-                log.info("信号量 [{}] 空闲，设置 TTL={}", this.key, this.idleTimeout);
+                log.debug("信号量 [{}] 空闲，设置 TTL={}", this.key, this.idleTimeout);
             } finally {
                 this.semaphore.release();
             }

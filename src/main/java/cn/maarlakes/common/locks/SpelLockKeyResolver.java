@@ -51,7 +51,7 @@ public final class SpelLockKeyResolver {
         final String[] parameterNames = PARAMETER_NAME_DISCOVERER.getParameterNames(invocation.getMethod());
         if (parameterNames != null) {
             final Object[] args = invocation.getArguments();
-            for (int i = 0; i < parameterNames.length; i++) {
+            for (int i = 0; i < Math.min(parameterNames.length, args.length); i++) {
                 context.setVariable(parameterNames[i], args[i]);
             }
         }

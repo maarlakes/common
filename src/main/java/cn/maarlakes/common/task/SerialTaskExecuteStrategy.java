@@ -3,12 +3,12 @@ package cn.maarlakes.common.task;
 import jakarta.annotation.Nonnull;
 import org.aopalliance.intercept.MethodInvocation;
 
-import java.util.concurrent.locks.Lock;
-
 /**
+ * 串行任务获取锁超时时的执行策略。
+ *
  * @author linjpxc
  */
 public interface SerialTaskExecuteStrategy {
 
-    Object execute(String taskName, @Nonnull MethodInvocation invocation, @Nonnull Lock lock);
+    Object execute(String taskName, @Nonnull MethodInvocation invocation);
 }

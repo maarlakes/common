@@ -30,6 +30,6 @@ public class SystemScheduledTaskServiceFactory extends AbstractScheduledTaskServ
 
     @Nonnull
     protected ScheduledExecutorService createScheduledTaskService(@Nonnull String taskName) {
-        return new ScheduledThreadPoolExecutor(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("system-scheduled-task-" + taskName + "-"));
+        return new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("system-scheduled-task-" + taskName + "-"));
     }
 }

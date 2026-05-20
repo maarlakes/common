@@ -73,7 +73,7 @@ public abstract class AbstractLockMethodInterceptor implements MethodInterceptor
         } else {
             mutex.lockInterruptibly();
         }
-        log.info("获取锁 [{}] 成功，异步={}", mutex.key(), mutex.isAsync());
+        log.debug("获取锁 [{}] 成功，异步={}", mutex.key(), mutex.isAsync());
     }
 
     /**
@@ -104,38 +104,46 @@ public abstract class AbstractLockMethodInterceptor implements MethodInterceptor
                 result = invocation.proceed();
             } catch (Throwable t) {
                 log.error("持有锁 [{}] 期间发生异常，释放锁", mutex.key(), t);
-                mutex.unlock();
-                log.info("锁 [{}] 已释放（异常后）", mutex.key());
+                safeUnlock(mutex, t);
                 throw t;
             }
             return handleAsyncUnlock(result, mutex);
         }
 
+        Throwable primary = null;
         try {
             return invocation.proceed();
+        } catch (Throwable t) {
+            primary = t;
+            throw t;
         } finally {
+            safeUnlock(mutex, primary);
+        }
+    }
+
+    private static void safeUnlock(@Nonnull Mutex mutex, Throwable primary) {
+        try {
             mutex.unlock();
-            log.info("锁 [{}] 已释放", mutex.key());
+            log.debug("锁 [{}] 已释放", mutex.key());
+        } catch (Throwable unlockError) {
+            log.warn("释放锁 [{}] 异常", mutex.key(), unlockError);
+            if (primary != null) {
+                primary.addSuppressed(unlockError);
+            }
         }
     }
 
     private static Object handleAsyncUnlock(@Nonnull Object result, @Nonnull Mutex mutex) {
         if (result instanceof CompletionStage) {
             return ((CompletionStage<?>) result).whenComplete((v, ex) -> {
-                if (ex != null) {
-                    log.info("锁 [{}] 已释放（CompletionStage 异常完成）", mutex.key());
-                } else {
-                    log.info("锁 [{}] 已释放（CompletionStage 完成）", mutex.key());
-                }
-                mutex.unlock();
+                safeUnlock(mutex, ex);
             });
         } else if (result instanceof Callable) {
             return (Callable<?>) () -> {
                 try {
                     return ((Callable<?>) result).call();
                 } finally {
-                    mutex.unlock();
-                    log.info("锁 [{}] 已释放（Callable 完成）", mutex.key());
+                    safeUnlock(mutex, null);
                 }
             };
         } else if (result instanceof Runnable) {
@@ -143,8 +151,7 @@ public abstract class AbstractLockMethodInterceptor implements MethodInterceptor
                 try {
                     ((Runnable) result).run();
                 } finally {
-                    mutex.unlock();
-                    log.info("锁 [{}] 已释放（Runnable 完成）", mutex.key());
+                    safeUnlock(mutex, null);
                 }
             };
         } else if (result instanceof Supplier) {
@@ -152,15 +159,13 @@ public abstract class AbstractLockMethodInterceptor implements MethodInterceptor
                 try {
                     return ((Supplier<?>) result).get();
                 } finally {
-                    mutex.unlock();
-                    log.info("锁 [{}] 已释放（Supplier 完成）", mutex.key());
+                    safeUnlock(mutex, null);
                 }
             };
         }
 
         // 同步结果，立即解锁
-        mutex.unlock();
-        log.info("锁 [{}] 已释放（异步方法返回了同步结果）", mutex.key());
+        safeUnlock(mutex, null);
         return result;
     }
 }

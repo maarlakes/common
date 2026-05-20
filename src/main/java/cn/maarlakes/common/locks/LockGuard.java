@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 public final class LockGuard implements AutoCloseable {
 
     private final Mutex mutex;
-    private boolean locked;
+    private volatile boolean locked;
 
     private LockGuard(@Nonnull Mutex mutex) {
         this.mutex = mutex;

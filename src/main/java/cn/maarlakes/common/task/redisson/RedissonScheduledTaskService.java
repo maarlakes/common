@@ -1,7 +1,6 @@
 package cn.maarlakes.common.task.redisson;
 
 import cn.maarlakes.common.task.AbstractScheduledTaskService;
-import cn.maarlakes.common.task.SystemScheduledTaskService;
 import cn.maarlakes.common.task.TaskExecutor;
 import jakarta.annotation.Nonnull;
 import org.redisson.api.RBlockingQueue;
@@ -22,15 +21,16 @@ import java.util.concurrent.*;
  * @author linjpxc
  */
 public class RedissonScheduledTaskService<T> extends AbstractScheduledTaskService<T> implements Closeable {
-    private static final Logger log = LoggerFactory.getLogger(SystemScheduledTaskService.class);
+    private static final Logger log = LoggerFactory.getLogger(RedissonScheduledTaskService.class);
 
     private final RDelayedQueue<T> delayedQueue;
     private final RBlockingQueue<T> blockingQueue;
     private final String taskName;
-    private boolean isRunning = true;
+    private final Thread daemonThread;
+    private volatile boolean isRunning = true;
 
     public RedissonScheduledTaskService(@Nonnull RedissonClient redissonClient, @Nonnull String namespace, @Nonnull String taskName, @Nonnull List<? extends TaskExecutor<T>> taskExecutors) {
-        this(redissonClient, namespace, taskName, taskExecutors, new ForkJoinPool());
+        this(redissonClient, namespace, taskName, taskExecutors, ForkJoinPool.commonPool());
     }
 
     public RedissonScheduledTaskService(@Nonnull RedissonClient redissonClient, @Nonnull String namespace, @Nonnull String taskName, @Nonnull List<? extends TaskExecutor<T>> taskExecutors, @Nonnull Executor executor) {
@@ -40,8 +40,9 @@ public class RedissonScheduledTaskService<T> extends AbstractScheduledTaskServic
         this.delayedQueue = redissonClient.getDelayedQueue(this.blockingQueue);
 
         this.taskName = taskName;
-        final Thread executeThread = new Thread(() -> this.take(redissonClient), "redisson-schedule-task-daemon");
+        final Thread executeThread = new Thread(() -> this.take(redissonClient), "redisson-schedule-task-daemon-" + taskName);
         executeThread.setDaemon(true);
+        this.daemonThread = executeThread;
         executeThread.start();
     }
 
@@ -53,11 +54,11 @@ public class RedissonScheduledTaskService<T> extends AbstractScheduledTaskServic
 
     @Override
     public int taskCount() {
-        final RFuture<Integer> delayedFuture = this.delayedQueue.sizeAsync();
-        final RFuture<Integer> queueFuture = this.blockingQueue.sizeAsync();
-
-        return Optional.ofNullable(delayedFuture.toCompletableFuture().join()).orElse(0)
-                + Optional.ofNullable(queueFuture.toCompletableFuture().join()).orElse(0);
+        final CompletableFuture<Integer> delayedFuture = this.delayedQueue.sizeAsync().toCompletableFuture().exceptionally(ex -> 0);
+        final CompletableFuture<Integer> queueFuture = this.blockingQueue.sizeAsync().toCompletableFuture().exceptionally(ex -> 0);
+        CompletableFuture.allOf(delayedFuture, queueFuture).join();
+        return Optional.ofNullable(delayedFuture.join()).orElse(0)
+                + Optional.ofNullable(queueFuture.join()).orElse(0);
     }
 
     @Override
@@ -77,21 +78,23 @@ public class RedissonScheduledTaskService<T> extends AbstractScheduledTaskServic
     @Override
     public void cancelTask(@Nonnull T task) {
         CompletableFuture.allOf(
-                this.delayedQueue.removeAsync(task).toCompletableFuture(),
-                this.blockingQueue.removeAsync(task).toCompletableFuture()
+                this.delayedQueue.removeAsync(task).toCompletableFuture().exceptionally(ex -> false),
+                this.blockingQueue.removeAsync(task).toCompletableFuture().exceptionally(ex -> false)
         ).join();
     }
 
     @Override
     public boolean containsTask(@Nonnull T task) {
-        final CompletableFuture<Boolean> delayedFuture = this.delayedQueue.containsAsync(task).toCompletableFuture();
-        final CompletableFuture<Boolean> queueFuture = this.blockingQueue.containsAsync(task).toCompletableFuture();
+        final CompletableFuture<Boolean> delayedFuture = this.delayedQueue.containsAsync(task).toCompletableFuture().exceptionally(ex -> false);
+        final CompletableFuture<Boolean> queueFuture = this.blockingQueue.containsAsync(task).toCompletableFuture().exceptionally(ex -> false);
+        CompletableFuture.allOf(delayedFuture, queueFuture).join();
         return Optional.ofNullable(delayedFuture.join()).orElse(false) || Optional.ofNullable(queueFuture.join()).orElse(false);
     }
 
     @Override
     public void close() {
         this.isRunning = false;
+        this.daemonThread.interrupt();
     }
 
     @Nonnull
@@ -106,7 +109,10 @@ public class RedissonScheduledTaskService<T> extends AbstractScheduledTaskServic
                 this.executeTask(this.blockingQueue.take());
             } catch (InterruptedException e) {
                 break;
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                if (this.isRunning) {
+                    log.error("调度任务 [{}] take 异常", this.taskName, e);
+                }
             }
         }
     }
