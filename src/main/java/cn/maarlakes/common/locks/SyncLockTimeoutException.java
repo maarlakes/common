@@ -1,9 +1,12 @@
 package cn.maarlakes.common.locks;
 
 /**
+ * 获取锁超时异常。
+ *
  * @author linjpxc
  */
-public class SyncLockTimeoutException extends RuntimeException {
+public class SyncLockTimeoutException extends LockException {
+
     private static final long serialVersionUID = 2893218154878752269L;
 
     public SyncLockTimeoutException() {
