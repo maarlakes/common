@@ -1,6 +1,7 @@
 package cn.maarlakes.common.spi;
 
 import cn.maarlakes.common.AnnotationOrderComparator;
+import cn.maarlakes.common.Ordered;
 import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
 
@@ -35,7 +36,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
 
     private SpiServiceLoader(@Nonnull Class<T> service, ClassLoader loader, boolean isShared) {
         this.service = Objects.requireNonNull(service, "Service interface cannot be null");
-        this.loader = (loader == null) ? service.getClassLoader() : loader;
+        this.loader = getClassLoader(service, loader);
         this.isShared = isShared;
     }
 
@@ -82,7 +83,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     @Nonnull
     @SuppressWarnings("unchecked")
     public Optional<T> lastOptional(@Nonnull Class<? extends T> serviceType) {
-        return (Optional<T>) this.stream(serviceType, AnnotationOrderComparator.getInstance().reversed()).findFirst();
+        return (Optional<T>) this.stream(serviceType, true).findFirst();
     }
 
     @Nonnull
@@ -97,8 +98,8 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
     }
 
     @SuppressWarnings("unchecked")
-    public <S extends T> Stream<S> stream(@Nonnull Class<S> serviceTye) {
-        return (Stream<S>) this.stream(serviceTye, AnnotationOrderComparator.getInstance());
+    public <S extends T> Stream<S> stream(@Nonnull Class<S> serviceType) {
+        return (Stream<S>) this.stream(serviceType, false);
     }
 
     @Nonnull
@@ -117,17 +118,24 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
 
     @SuppressWarnings("unchecked")
     public static <S> SpiServiceLoader<S> loadShared(@Nonnull Class<S> service, ClassLoader loader) {
-        final ClassLoader cl = loader == null ? ClassLoader.getSystemClassLoader() : loader;
+        final ClassLoader cl = getClassLoader(service, loader);
         return (SpiServiceLoader<S>) SERVICE_LOADER_CACHE.computeIfAbsent(cl, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(service, k -> new SpiServiceLoader<>(service, cl, true));
     }
 
-    private <S extends T> Stream<? extends S> stream(@Nonnull Class<? extends S> serviceType, @Nonnull Comparator<? super S> comparator) {
+    private <S extends T> Stream<? extends S> stream(@Nonnull Class<? extends S> serviceType, boolean reversed) {
+        Comparator<Holder> holderComparator = Comparator.comparingInt(h -> {
+            Integer order = AnnotationOrderComparator.findOrder(h.serviceType);
+            return order != null ? order : Ordered.LOWEST;
+        });
+        if (reversed) {
+            holderComparator = holderComparator.reversed();
+        }
         return this.holders.get().stream()
                 .filter(item -> serviceType.isAssignableFrom(item.serviceType))
+                .sorted(holderComparator)
                 .map(this::loadService)
-                .map(serviceType::cast)
-                .sorted(comparator);
+                .map(serviceType::cast);
     }
 
     private T loadService(@Nonnull Holder holder) {
@@ -167,7 +175,7 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
                                 if (!map.containsKey(ln)) {
                                     final Class<?> type = Class.forName(ln, false, loader);
                                     if (!this.service.isAssignableFrom(type)) {
-                                        throw new SpiServiceException(this.service.getName() + ": Provider" + ln + " not a subtype");
+                                        throw new SpiServiceException(this.service.getName() + ": Provider " + ln + " not a subtype");
                                     }
                                     map.put(ln, new Holder(type, type.getAnnotation(SpiService.class)));
                                 }
@@ -221,6 +229,18 @@ public final class SpiServiceLoader<T> implements Iterable<T> {
                 throw new SpiServiceException(this.service.getName() + ": " + url + ":" + lineNumber + ":Illegal provider-class name: " + className);
             }
         }
+    }
+
+    @Nonnull
+    private static ClassLoader getClassLoader(@Nonnull Class<?> service, ClassLoader loader) {
+        if (loader != null) {
+            return loader;
+        }
+        final ClassLoader classLoader = service.getClassLoader();
+        if (classLoader != null) {
+            return classLoader;
+        }
+        return ClassLoader.getSystemClassLoader();
     }
 
     private static final class Holder {
