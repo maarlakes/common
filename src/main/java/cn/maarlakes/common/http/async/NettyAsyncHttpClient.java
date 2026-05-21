@@ -4,15 +4,18 @@ import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.body.multipart.FilePart;
 import cn.maarlakes.common.http.body.multipart.MultipartBody;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
+import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.CollectionUtils;
 import io.netty.handler.codec.http.cookie.CookieHeaderNames;
 import jakarta.annotation.Nonnull;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.Dsl;
 import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.proxy.ProxyServer;
 import org.asynchttpclient.request.body.multipart.InputStreamPart;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -105,6 +108,20 @@ public class NettyAsyncHttpClient implements HttpClient {
             if (config.getRequestTimeout() != null) {
                 builder.setRequestTimeout((int) config.getRequestTimeout().toMillis());
             }
+            if (config.getProxy() != null) {
+                if (config.getProxyAuthentication() == null) {
+                    final InetSocketAddress address = (InetSocketAddress) config.getProxy().address();
+                    builder.setProxyServer(new ProxyServer.Builder(address.getHostName(), address.getPort()));
+                } else {
+                    for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, NettyAsyncHttpClient.class.getClassLoader())) {
+                        final ProxyServer.Builder proxyServerBuilder = authenticator.authenticate(config.getProxy(), config.getProxyAuthentication());
+                        if (proxyServerBuilder != null) {
+                            builder.setProxyServer(proxyServerBuilder);
+                            break;
+                        }
+                    }
+                }
+            }
         }
         return builder;
     }
@@ -135,6 +152,7 @@ public class NettyAsyncHttpClient implements HttpClient {
     protected static class DefaultResponse implements Response {
 
         private final org.asynchttpclient.Response response;
+        private volatile ResponseBody body;
 
         protected DefaultResponse(org.asynchttpclient.Response response) {
             this.response = response;
@@ -153,11 +171,18 @@ public class NettyAsyncHttpClient implements HttpClient {
         @Nonnull
         @Override
         public ResponseBody getBody() {
-            return new ByteArrayResponseBody(
-                    this.response.getResponseBodyAsBytes(),
-                    Optional.ofNullable(this.response.getContentType()).map(ContentType::parse).orElse(null),
-                    this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
-            );
+            if (this.body == null) {
+                synchronized (this) {
+                    if (this.body == null) {
+                        this.body = new ByteArrayResponseBody(
+                                this.response.getResponseBodyAsBytes(),
+                                Optional.ofNullable(this.response.getContentType()).map(ContentType::parse).orElse(null),
+                                this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
+                        );
+                    }
+                }
+            }
+            return this.body;
         }
 
         @Override

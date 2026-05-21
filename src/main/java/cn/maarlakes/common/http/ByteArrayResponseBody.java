@@ -83,7 +83,7 @@ public class ByteArrayResponseBody implements ResponseBody {
 
     @Override
     public byte[] asBytes() {
-        return Arrays.copyOf(this.contentUnzip(), this.content.length);
+        return this.contentUnzip();
     }
 
     @Override
@@ -112,17 +112,10 @@ public class ByteArrayResponseBody implements ResponseBody {
     }
 
     private byte[] contentUnzip() {
-        if (this.contentEncoding != null) {
-            try (InputStream inputStream = this.getContent()) {
-                for (ResponseBodyEncoder encoder : this.encoders.get()) {
-                    if (encoder.supported(this.contentEncoding)) {
-                        return StreamUtils.readAllBytes(encoder.decoding(inputStream));
-                    }
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+        try (InputStream content = this.getContent()) {
+            return StreamUtils.readAllBytes(content);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        return this.content;
     }
 }

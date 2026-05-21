@@ -5,6 +5,7 @@ import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.body.multipart.FilePart;
 import cn.maarlakes.common.http.body.multipart.MultipartBody;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
+import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.CollectionUtils;
 import jakarta.annotation.Nonnull;
 import org.apache.http.HttpEntity;
@@ -49,22 +50,28 @@ public class ApacheHttpClient4 implements HttpClient {
 
     private final org.apache.http.client.HttpClient client;
     private final Executor executor;
+    private final boolean ownsExecutor;
 
     public ApacheHttpClient4() {
-        this(HttpClientBuilder.create().build(), new ForkJoinPool());
+        this(HttpClientBuilder.create().build(), new ForkJoinPool(), true);
     }
 
     public ApacheHttpClient4(@Nonnull Executor executor) {
-        this(HttpClientBuilder.create().build(), executor);
+        this(HttpClientBuilder.create().build(), executor, false);
     }
 
     public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client) {
-        this(client, new ForkJoinPool());
+        this(client, new ForkJoinPool(), true);
     }
 
     public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, @Nonnull Executor executor) {
+        this(client, executor, false);
+    }
+
+    private ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, @Nonnull Executor executor, boolean ownsExecutor) {
         this.client = client;
         this.executor = executor;
+        this.ownsExecutor = ownsExecutor;
     }
 
     @Nonnull
@@ -72,6 +79,7 @@ public class ApacheHttpClient4 implements HttpClient {
     @SuppressWarnings("DuplicatedCode")
     public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
         return CompletableFuture.supplyAsync(() -> {
+            InputStream contentStream = null;
             try {
                 final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
                         .setUri(toUri(request));
@@ -84,9 +92,9 @@ public class ApacheHttpClient4 implements HttpClient {
                     if (request.getBody() instanceof MultipartBody) {
                         settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
                     } else {
-                        final InputStream content = request.getBody().getContentStream();
-                        if (content != null) {
-                            builder.setEntity(new InputStreamEntity(content, toApacheContentType(request.getBody().getContentType())));
+                        contentStream = request.getBody().getContentStream();
+                        if (contentStream != null) {
+                            builder.setEntity(new InputStreamEntity(contentStream, toApacheContentType(request.getBody().getContentType())));
                         }
                     }
                 }
@@ -96,6 +104,15 @@ public class ApacheHttpClient4 implements HttpClient {
                 if (requestConfig != null) {
                     context.setRequestConfig(requestConfig);
                 }
+                if (config.getProxy() != null && config.getProxyAuthentication() != null) {
+                    for (Apache4ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(Apache4ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                        if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
+                            authenticator.authenticate(context, config.getProxy(), config.getProxyAuthentication());
+                            break;
+                        }
+                    }
+                }
+
                 if (CollectionUtils.isNotEmpty(request.getCookies())) {
                     builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
                 }
@@ -104,6 +121,13 @@ public class ApacheHttpClient4 implements HttpClient {
                 return this.client.execute(determineTarget(uriRequest), uriRequest, (ResponseHandler<Response>) response -> new DefaultResponse(request.getUri(), response, context), context);
             } catch (Exception e) {
                 throw new HttpClientException(e.getMessage(), e);
+            } finally {
+                if (contentStream != null) {
+                    try {
+                        contentStream.close();
+                    } catch (IOException ignored) {
+                    }
+                }
             }
         }, this.executor);
     }
@@ -117,7 +141,7 @@ public class ApacheHttpClient4 implements HttpClient {
                 throw new IOException(e);
             }
         }
-        if (this.executor instanceof ExecutorService) {
+        if (this.ownsExecutor && this.executor instanceof ExecutorService) {
             ((ExecutorService) this.executor).shutdown();
         }
     }
@@ -134,6 +158,7 @@ public class ApacheHttpClient4 implements HttpClient {
         return result;
     }
 
+    @SuppressWarnings("DuplicatedCode")
     private static org.apache.http.client.config.RequestConfig to(RequestConfig config) {
         if (config == null) {
             return null;
@@ -148,6 +173,13 @@ public class ApacheHttpClient4 implements HttpClient {
         }
         if (config.getConnectTimeout() != null) {
             builder.setConnectTimeout((int) config.getConnectTimeout().toMillis());
+        }
+        if (config.getProxy() != null) {
+            final InetSocketAddress address = (InetSocketAddress) config.getProxy().address();
+            builder.setProxy(new HttpHost(address.getAddress(), address.getPort()));
+        }
+        if (config.getMaxRedirects() > 0) {
+            builder.setMaxRedirects(config.getMaxRedirects());
         }
         return builder.build();
     }

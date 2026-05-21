@@ -1,21 +1,21 @@
 package cn.maarlakes.common.http.ok;
 
 import cn.maarlakes.common.function.Function0;
+import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.Request;
 import cn.maarlakes.common.http.Response;
 import cn.maarlakes.common.http.ResponseBody;
-import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
+import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.CollectionUtils;
 import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
+import okhttp3.*;
 import okhttp3.Cookie;
 import okhttp3.RequestBody;
-import okhttp3.*;
-import okhttp3.internal.connection.Exchange;
-import okhttp3.internal.connection.RealConnection;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.util.*;
@@ -89,7 +89,7 @@ public class OkAsyncHttpClient implements HttpClient {
                                 .domain(cookie.domain())
                                 .path(cookie.path());
                         if (cookie.expiresAt() > 0) {
-                            builder.maxAge((System.currentTimeMillis() - cookie.expiresAt()) / 1000L);
+                            builder.maxAge((cookie.expiresAt() - System.currentTimeMillis()) / 1000L);
                         }
                         builder.isSecure(cookie.secure());
                         builder.isHttpOnly(cookie.hostOnly());
@@ -137,6 +137,18 @@ public class OkAsyncHttpClient implements HttpClient {
             }
             if (config.getResponseTimeout() != null) {
                 builder.readTimeout(config.getResponseTimeout());
+            }
+            if (config.getProxy() != null) {
+                builder.proxy(config.getProxy());
+                if (config.getProxyAuthentication() != null) {
+                    for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                        final Authenticator a = authenticator.authenticate(config.getProxy(), config.getProxyAuthentication());
+                        if (a != null) {
+                            builder.proxyAuthenticator(a);
+                            break;
+                        }
+                    }
+                }
             }
         }
         return builder.build();
@@ -194,15 +206,19 @@ public class OkAsyncHttpClient implements HttpClient {
             this.cookies = cookies;
 
             this.bodyFactory = Lazy.of(() -> {
-                final okhttp3.ResponseBody body = response.body();
-                if (body == null) {
-                    return new ByteArrayResponseBody(new byte[0], null, null);
+                try {
+                    final okhttp3.ResponseBody body = response.body();
+                    if (body == null) {
+                        return new ByteArrayResponseBody(new byte[0], null, null);
+                    }
+                    return new ByteArrayResponseBody(
+                            body.bytes(),
+                            Optional.ofNullable(body.contentType()).map(MediaType::toString).map(ContentType::parse).orElse(null),
+                            this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
+                    );
+                } finally {
+                    response.close();
                 }
-                return new ByteArrayResponseBody(
-                        body.bytes(),
-                        Optional.ofNullable(body.contentType()).map(MediaType::toString).map(ContentType::parse).orElse(null),
-                        this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
-                );
             });
         }
 
@@ -274,11 +290,14 @@ public class OkAsyncHttpClient implements HttpClient {
 
         @Override
         public SocketAddress getRemoteAddress() {
-            return Optional.ofNullable(this.response.exchange())
-                    .map(Exchange::getConnection$okhttp)
-                    .map(RealConnection::route)
-                    .map(Route::socketAddress)
-                    .orElse(null);
+            final HttpUrl url = this.response.request().url();
+            final int port = url.port();
+            return new InetSocketAddress(url.host(), port);
+        }
+
+        @Override
+        public void close() {
+            this.response.close();
         }
     }
 }

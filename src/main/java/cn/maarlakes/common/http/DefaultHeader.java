@@ -79,6 +79,6 @@ public class DefaultHeader implements Header {
 
     @Override
     public String toString() {
-        return this.headerName + ":" + String.join(";", this.values);
+        return this.headerName + ": " + String.join(", ", this.values);
     }
 }

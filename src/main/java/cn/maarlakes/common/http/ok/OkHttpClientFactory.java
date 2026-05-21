@@ -41,7 +41,12 @@ public class OkHttpClientFactory implements HttpClientFactory {
     @Nonnull
     @Override
     public HttpClient createClient(@Nonnull Function0<Executor> executorFactory) {
-        return new OkAsyncHttpClient(new OkHttpClient.Builder().build());
+        final OkHttpClient.Builder builder = new OkHttpClient.Builder();
+        final Executor executor = executorFactory.get();
+        if (executor instanceof ExecutorService) {
+            builder.dispatcher(new Dispatcher((ExecutorService) executor));
+        }
+        return new OkAsyncHttpClient(builder.build());
     }
 
     @Override

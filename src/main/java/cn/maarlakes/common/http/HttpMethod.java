@@ -18,6 +18,9 @@ public interface HttpMethod extends Comparable<HttpMethod>, Serializable {
     HttpMethod PUT = valueOf("PUT");
     HttpMethod DELETE = valueOf("DELETE");
     HttpMethod PATCH = valueOf("PATCH");
+    HttpMethod HEAD = valueOf("HEAD");
+    HttpMethod OPTIONS = valueOf("OPTIONS");
+    HttpMethod TRACE = valueOf("TRACE");
 
     @Nonnull
     static HttpMethod valueOf(@Nonnull String name) {

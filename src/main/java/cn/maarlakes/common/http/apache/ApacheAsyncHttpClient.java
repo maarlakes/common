@@ -4,6 +4,7 @@ import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.body.multipart.FilePart;
 import cn.maarlakes.common.http.body.multipart.MultipartBody;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
+import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.CollectionUtils;
 import jakarta.annotation.Nonnull;
 import org.apache.hc.client5.http.async.HttpAsyncClient;
@@ -20,6 +21,7 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.EndpointDetails;
 import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.support.AbstractAsyncResponseConsumer;
@@ -29,6 +31,7 @@ import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.apache.hc.core5.util.Timeout;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
@@ -87,6 +90,15 @@ public class ApacheAsyncHttpClient implements HttpClient {
             if (requestConfig != null) {
                 context.setRequestConfig(requestConfig);
             }
+            if (config.getProxy() != null && config.getProxyAuthentication() != null) {
+                for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                    if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
+                        authenticator.authenticate(context, config.getProxy(), config.getProxyAuthentication());
+                        break;
+                    }
+                }
+            }
+
             if (CollectionUtils.isNotEmpty(request.getCookies())) {
                 builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
             }
@@ -126,6 +138,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
         }
     }
 
+    @SuppressWarnings("DuplicatedCode")
     private static org.apache.hc.client5.http.config.RequestConfig to(RequestConfig config) {
         if (config == null) {
             return null;
@@ -140,6 +153,13 @@ public class ApacheAsyncHttpClient implements HttpClient {
         }
         if (config.getConnectTimeout() != null) {
             builder.setConnectTimeout(Timeout.ofMilliseconds(config.getConnectTimeout().toMillis()));
+        }
+        if (config.getProxy() != null) {
+            final InetSocketAddress address = (InetSocketAddress) config.getProxy().address();
+            builder.setProxy(new HttpHost(address.getAddress(), address.getPort()));
+        }
+        if (config.getMaxRedirects() > 0) {
+            builder.setMaxRedirects(config.getMaxRedirects());
         }
         return builder.build();
     }

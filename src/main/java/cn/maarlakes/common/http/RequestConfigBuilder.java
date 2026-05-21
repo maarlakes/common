@@ -1,7 +1,9 @@
 package cn.maarlakes.common.http;
 
+import cn.maarlakes.common.http.proxy.ProxyAuthentication;
 import jakarta.annotation.Nonnull;
 
+import java.net.Proxy;
 import java.time.Duration;
 import java.util.Objects;
 
@@ -14,6 +16,9 @@ class RequestConfigBuilder implements RequestConfig.Builder {
     private Duration requestTimeout;
     private Duration connectTimeout;
     private Duration responseTimeout;
+    private Proxy proxy;
+    private ProxyAuthentication proxyAuthentication;
+    private int maxRedirects = -1;
 
     @Nonnull
     @Override
@@ -45,23 +50,50 @@ class RequestConfigBuilder implements RequestConfig.Builder {
 
     @Nonnull
     @Override
+    public RequestConfig.Builder proxy(Proxy proxy) {
+        this.proxy = proxy;
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public RequestConfig.Builder proxyAuthentication(ProxyAuthentication proxyAuthentication) {
+        this.proxyAuthentication = proxyAuthentication;
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public RequestConfig.Builder maxRedirects(int maxRedirects) {
+        this.maxRedirects = maxRedirects;
+        return this;
+    }
+
+    @Nonnull
+    @Override
     public RequestConfig build() {
-        return new DefaultRequestConfig(this.redirectsEnabled, this.requestTimeout, this.connectTimeout, this.responseTimeout);
+        return new DefaultRequestConfig(this.redirectsEnabled, this.requestTimeout, this.connectTimeout, this.responseTimeout, this.proxy, this.proxyAuthentication, this.maxRedirects);
     }
 
     private static class DefaultRequestConfig implements RequestConfig {
-        private static final long serialVersionUID = 8469433946916457322L;
+        private static final long serialVersionUID = 8469433946916457328L;
 
         private final boolean redirectsEnabled;
         private final Duration requestTimeout;
         private final Duration connectTimeout;
         private final Duration responseTimeout;
+        private final Proxy proxy;
+        private final ProxyAuthentication proxyAuthentication;
+        private final int maxRedirects;
 
-        private DefaultRequestConfig(boolean redirectsEnabled, Duration requestTimeout, Duration connectTimeout, Duration responseTimeout) {
+        private DefaultRequestConfig(boolean redirectsEnabled, Duration requestTimeout, Duration connectTimeout, Duration responseTimeout, Proxy proxy, ProxyAuthentication proxyAuthentication, int maxRedirects) {
             this.redirectsEnabled = redirectsEnabled;
             this.requestTimeout = requestTimeout;
             this.connectTimeout = connectTimeout;
             this.responseTimeout = responseTimeout;
+            this.proxy = proxy;
+            this.proxyAuthentication = proxyAuthentication;
+            this.maxRedirects = maxRedirects;
         }
 
         @Override
@@ -85,6 +117,21 @@ class RequestConfigBuilder implements RequestConfig.Builder {
         }
 
         @Override
+        public Proxy getProxy() {
+            return proxy;
+        }
+
+        @Override
+        public ProxyAuthentication getProxyAuthentication() {
+            return this.proxyAuthentication;
+        }
+
+        @Override
+        public int getMaxRedirects() {
+            return maxRedirects;
+        }
+
+        @Override
         public boolean equals(Object obj) {
             if (obj == this) {
                 return true;
@@ -94,14 +141,17 @@ class RequestConfigBuilder implements RequestConfig.Builder {
                 return this.isRedirectsEnabled() == that.isRedirectsEnabled()
                         && Objects.equals(this.getRequestTimeout(), that.getRequestTimeout())
                         && Objects.equals(this.getConnectTimeout(), that.getConnectTimeout())
-                        && Objects.equals(this.getResponseTimeout(), that.getResponseTimeout());
+                        && Objects.equals(this.getResponseTimeout(), that.getResponseTimeout())
+                        && Objects.equals(this.getProxy(), that.getProxy())
+                        && Objects.equals(this.proxyAuthentication, that.getProxyAuthentication())
+                        && this.getMaxRedirects() == that.getMaxRedirects();
             }
             return false;
         }
 
         @Override
         public String toString() {
-            return "redirectsEnabled=" + isRedirectsEnabled() + ", connectionRequestTimeout=" + requestTimeout + ", connectTimeout=" + connectTimeout + ", responseTimeout=" + responseTimeout;
+            return "redirectsEnabled=" + isRedirectsEnabled() + ", requestTimeout=" + requestTimeout + ", connectTimeout=" + connectTimeout + ", responseTimeout=" + responseTimeout + ", proxy=" + proxy + ", maxRedirects=" + maxRedirects;
         }
     }
 }

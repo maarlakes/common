@@ -42,7 +42,7 @@ public interface ResponseBody {
         try (InputStream content = this.getContent()) {
             return StreamUtils.readAllText(content, charset);
         } catch (Exception e) {
-            throw new IllegalStateException(e);
+            throw new HttpClientException(e.getMessage(), e);
         }
     }
 
@@ -50,7 +50,7 @@ public interface ResponseBody {
         try (InputStream content = this.getContent()) {
             return StreamUtils.readAllBytes(content);
         } catch (Exception e) {
-            throw new IllegalStateException(e);
+            throw new HttpClientException(e.getMessage(), e);
         }
     }
 
@@ -62,7 +62,7 @@ public interface ResponseBody {
         try (InputStream content = this.getContent()) {
             return JSON.parseObject(content, charset, type);
         } catch (Exception e) {
-            throw new IllegalStateException(e);
+            throw new HttpClientException(e.getMessage(), e);
         }
     }
 
@@ -74,7 +74,7 @@ public interface ResponseBody {
         try (InputStream content = this.getContent()) {
             StreamUtils.writeTo(content, consumer);
         } catch (Exception e) {
-            throw new IllegalStateException(e);
+            throw new HttpClientException(e.getMessage(), e);
         }
     }
 }

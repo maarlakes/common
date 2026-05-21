@@ -70,6 +70,16 @@ public interface Request {
         }
 
         @Nonnull
+        default Builder head(@Nonnull String url) {
+            return this.method(HttpMethod.HEAD).uri(url);
+        }
+
+        @Nonnull
+        default Builder options(@Nonnull String url) {
+            return this.method(HttpMethod.OPTIONS).uri(url);
+        }
+
+        @Nonnull
         default Builder uri(@Nonnull String url) {
             return this.uri(URI.create(url));
         }

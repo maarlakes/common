@@ -1,7 +1,10 @@
-package cn.maarlakes.common.http;
+package cn.maarlakes.common.http.jdk;
 
+import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.body.BodyUtils;
 import cn.maarlakes.common.http.body.UrlEncodedFormEntityBody;
+import cn.maarlakes.common.http.proxy.ProxyAuthentication;
+import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.CollectionUtils;
 import cn.maarlakes.common.utils.Lazy;
 import cn.maarlakes.common.utils.StreamUtils;
@@ -26,13 +29,19 @@ import java.util.stream.Collectors;
 public class JdkHttpClient implements HttpClient {
 
     private final Executor executor;
+    private final boolean ownsExecutor;
 
     public JdkHttpClient() {
-        this(new ForkJoinPool());
+        this(new ForkJoinPool(), true);
     }
 
     public JdkHttpClient(@Nonnull Executor executor) {
+        this(executor, false);
+    }
+
+    private JdkHttpClient(@Nonnull Executor executor, boolean ownsExecutor) {
         this.executor = executor;
+        this.ownsExecutor = ownsExecutor;
     }
 
     @Nonnull
@@ -42,7 +51,15 @@ public class JdkHttpClient implements HttpClient {
             HttpURLConnection connection = null;
             try {
                 final URL url = toUrl(request);
-                connection = (HttpURLConnection) url.openConnection();
+                if (config != null && config.getProxy() != null) {
+                    connection = (HttpURLConnection) url.openConnection(config.getProxy());
+                    final ProxyAuthentication proxyAuthentication = config.getProxyAuthentication();
+                    if (proxyAuthentication != null) {
+                        this.setProxyAuthorization(connection, config.getProxy(), proxyAuthentication);
+                    }
+                } else {
+                    connection = (HttpURLConnection) url.openConnection();
+                }
                 connection.setDoInput(true);
                 connection.setInstanceFollowRedirects(config == null || config.isRedirectsEnabled());
                 connection.setRequestMethod(request.getMethod().name());
@@ -96,7 +113,7 @@ public class JdkHttpClient implements HttpClient {
 
     @Override
     public void close() throws IOException {
-        if (this.executor instanceof ExecutorService) {
+        if (this.ownsExecutor && this.executor instanceof ExecutorService) {
             ((ExecutorService) executor).shutdown();
         }
     }
@@ -120,6 +137,15 @@ public class JdkHttpClient implements HttpClient {
                 map.entrySet().stream().filter(item -> item.getKey() != null).map(entry -> new DefaultHeader(entry.getKey(), entry.getValue())).collect(Collectors.toList())
                         .stream().collect(Collectors.toMap(DefaultHeader::getName, Function.identity()))
         );
+    }
+
+    private void setProxyAuthorization(@Nonnull HttpURLConnection connection, @Nonnull Proxy proxy, @Nonnull ProxyAuthentication authentication) {
+        for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+            if (authenticator.supported(proxy, authentication)) {
+                authenticator.authenticate(connection, proxy, authentication);
+                break;
+            }
+        }
     }
 
     private static class DefaultResponse implements Response {
