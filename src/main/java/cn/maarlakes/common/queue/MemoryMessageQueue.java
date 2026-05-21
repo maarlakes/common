@@ -7,27 +7,28 @@ import java.util.concurrent.*;
 import java.util.function.Predicate;
 
 /**
+ * 基于 {@link java.util.concurrent.BlockingQueue} 的内存消息队列实现。
+ *
  * @author linjpxc
  */
-public class MemoryTopicQueue<T> extends AbstractBlockingQueue<T> {
+public class MemoryMessageQueue<T> extends AbstractBlockingQueue<T> {
 
     private final BlockingQueue<T> queue;
-
     private final String name;
 
-    public MemoryTopicQueue(@Nonnull String name) {
-        this(name, new LinkedBlockingQueue<>(), new ForkJoinPool());
+    public MemoryMessageQueue(@Nonnull String name) {
+        this(name, new LinkedBlockingQueue<>(), ForkJoinPool.commonPool());
     }
 
-    public MemoryTopicQueue(@Nonnull String name, @Nonnull Executor executor) {
+    public MemoryMessageQueue(@Nonnull String name, @Nonnull Executor executor) {
         this(name, new LinkedBlockingQueue<>(), executor);
     }
 
-    public MemoryTopicQueue(@Nonnull String name, BlockingQueue<T> queue) {
-        this(name, queue, new ForkJoinPool());
+    public MemoryMessageQueue(@Nonnull String name, BlockingQueue<T> queue) {
+        this(name, queue, ForkJoinPool.commonPool());
     }
 
-    public MemoryTopicQueue(@Nonnull String name, BlockingQueue<T> queue, @Nonnull Executor executor) {
+    public MemoryMessageQueue(@Nonnull String name, BlockingQueue<T> queue, @Nonnull Executor executor) {
         super(executor, null);
         this.name = name;
         this.queue = queue;
@@ -70,6 +71,16 @@ public class MemoryTopicQueue<T> extends AbstractBlockingQueue<T> {
     }
 
     @Override
+    public T poll() {
+        return this.queue.poll();
+    }
+
+    @Override
+    public CompletionStage<T> pollAsync() {
+        return CompletableFuture.completedFuture(this.queue.poll());
+    }
+
+    @Override
     public void clear() {
         this.queue.clear();
     }
@@ -105,7 +116,7 @@ public class MemoryTopicQueue<T> extends AbstractBlockingQueue<T> {
         final List<T> list = new ArrayList<>();
         this.queue.removeIf(item -> {
             final boolean result = predicate.test(item);
-            if (result){
+            if (result) {
                 list.add(item);
             }
             return result;
@@ -125,13 +136,12 @@ public class MemoryTopicQueue<T> extends AbstractBlockingQueue<T> {
 
     @Nonnull
     @Override
-    public Iterator<T> iterator() {
-        return this.queue.iterator();
-    }
-
-    @Nonnull
-    @Override
     protected T take() throws Exception {
         return this.queue.take();
+    }
+
+    @Override
+    protected void reOffer(@Nonnull T value) {
+        this.queue.offer(value);
     }
 }

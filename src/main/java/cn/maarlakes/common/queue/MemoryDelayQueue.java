@@ -11,6 +11,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
+ * 基于 {@link java.util.concurrent.DelayQueue} 的内存延迟队列实现。
+ *
+ * <p>消息通过 {@link DelayedWrapper} 包装以支持延迟投递。
+ * 如果消息本身实现了 {@link java.util.concurrent.Delayed}，会自动使用其延迟时间。
+ *
  * @author linjpxc
  */
 public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQueue<T> {
@@ -19,14 +24,13 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
     private final String name;
 
     public MemoryDelayQueue(@Nonnull String name, RateLimiter rateLimiter) {
-        this(name, new ForkJoinPool(), rateLimiter);
+        this(name, ForkJoinPool.commonPool(), rateLimiter);
     }
 
     public MemoryDelayQueue(@Nonnull String name, @Nonnull Executor executor, RateLimiter rateLimiter) {
         super(executor, rateLimiter);
         this.name = name;
     }
-
 
     @Nonnull
     @Override
@@ -72,6 +76,17 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
     @Override
     public CompletionStage<Boolean> offerAsync(@Nonnull T value, @Nonnull Duration delay) {
         return CompletableFuture.completedFuture(this.offer(value, delay));
+    }
+
+    @Override
+    public T poll() {
+        final DelayedWrapper<T> wrapper = this.queue.poll();
+        return wrapper == null ? null : wrapper.value;
+    }
+
+    @Override
+    public CompletionStage<T> pollAsync() {
+        return CompletableFuture.completedFuture(this.poll());
     }
 
     @Override
@@ -131,25 +146,13 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
 
     @Nonnull
     @Override
-    public Iterator<T> iterator() {
-        final Iterator<DelayedWrapper<T>> iterator = this.queue.iterator();
-        return new Iterator<T>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public T next() {
-                return iterator.next().value;
-            }
-        };
-    }
-
-    @Nonnull
-    @Override
     protected T take() throws Exception {
         return this.queue.take().value;
+    }
+
+    @Override
+    protected void reOffer(@Nonnull T value) {
+        this.queue.offer(this.convert(value, Duration.ZERO));
     }
 
     private DelayedWrapper<T> convert(@Nonnull T value, Duration delay) {
@@ -162,12 +165,11 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
         return new DelayedWrapper<>(value, delay);
     }
 
-
     private static final class DelayedWrapper<T> implements Delayed {
 
-        public final LocalDateTime now = LocalDateTime.now();
-        public final T value;
-        public final Duration delay;
+        private final LocalDateTime now = LocalDateTime.now();
+        private final T value;
+        private final Duration delay;
 
         private DelayedWrapper(@Nonnull T value, Duration delay) {
             this.value = value;
@@ -179,8 +181,12 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
             if (this.delay == null) {
                 return ((Delayed) this.value).getDelay(unit);
             }
-            final Duration duration = Duration.between(this.now, LocalDateTime.now());
-            return unit.convert(this.delay.minus(duration).toMillis(), TimeUnit.MILLISECONDS);
+            final Duration elapsed = Duration.between(this.now, LocalDateTime.now());
+            final Duration remaining = this.delay.minus(elapsed);
+            if (remaining.isNegative()) {
+                return 0;
+            }
+            return unit.convert(remaining.toNanos(), TimeUnit.NANOSECONDS);
         }
 
         @Override
@@ -188,7 +194,8 @@ public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements Del
             if (this.value instanceof Delayed) {
                 return ((Delayed) this.value).compareTo(o);
             }
-            return 0;
+            final long diff = this.getDelay(TimeUnit.MILLISECONDS) - o.getDelay(TimeUnit.MILLISECONDS);
+            return Long.compare(diff, 0);
         }
 
         @Override

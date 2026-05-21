@@ -10,18 +10,24 @@ import org.redisson.api.RDelayedQueue;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 /**
+ * 基于 Redisson {@link RDelayedQueue} + {@link RBlockingQueue} 的延迟队列实现。
+ *
+ * <p>消息通过 {@link RDelayedQueue} 投递，到期后自动转移到 {@link RBlockingQueue} 供消费。
+ * 如果消息实现了 {@link java.util.concurrent.Delayed}，会自动使用其延迟时间。
+ *
  * @author linjpxc
  */
 class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQueue<T> {
     private final String name;
     private final RBlockingQueue<T> queue;
     private final RDelayedQueue<T> delayedQueue;
+    private final AtomicBoolean destroyed = new AtomicBoolean();
 
     protected RedissonDelayQueue(@Nonnull String name, @Nonnull RBlockingQueue<T> queue, RDelayedQueue<T> delayedQueue, @Nonnull Executor executor, RateLimiter rateLimiter) {
         super(executor, rateLimiter);
@@ -36,7 +42,7 @@ class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQ
             final Delayed delayed = (Delayed) value;
             this.delayedQueue.offer(value, delayed.getDelay(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
         } else {
-            return this.queue.offer(value);
+            this.delayedQueue.offer(value, 0, TimeUnit.MILLISECONDS);
         }
         return true;
     }
@@ -47,7 +53,7 @@ class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQ
             final Delayed delayed = (Delayed) value;
             return this.delayedQueue.offerAsync(value, delayed.getDelay(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS).thenApply(v -> true);
         }
-        return this.queue.offerAsync(value);
+        return this.delayedQueue.offerAsync(value, 0, TimeUnit.MILLISECONDS).thenApply(v -> true);
     }
 
     @Override
@@ -84,7 +90,17 @@ class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQ
 
     @Override
     public CompletionStage<Boolean> isEmptyAsync() {
-        return CompletableFuture.supplyAsync(this::isEmpty);
+        return CompletableFuture.supplyAsync(this::isEmpty, this.executor);
+    }
+
+    @Override
+    public T poll() {
+        return this.queue.poll();
+    }
+
+    @Override
+    public CompletionStage<T> pollAsync() {
+        return this.queue.pollAsync().toCompletableFuture();
     }
 
     @Override
@@ -95,7 +111,7 @@ class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQ
 
     @Override
     public CompletionStage<Void> clearAsync() {
-        return CompletableFuture.runAsync(this::clear);
+        return CompletableFuture.runAsync(this::clear, this.executor);
     }
 
     @Override
@@ -154,28 +170,20 @@ class RedissonDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQ
 
     @Nonnull
     @Override
-    public Iterator<T> iterator() {
-        final Iterator<T> iterator = this.delayedQueue.iterator();
-        final Iterator<T> iterator1 = this.queue.iterator();
-        return new Iterator<T>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext() || iterator1.hasNext();
-            }
-
-            @Override
-            public T next() {
-                if (iterator.hasNext()) {
-                    return iterator.next();
-                }
-                return iterator1.next();
-            }
-        };
-    }
-
-    @Nonnull
-    @Override
     protected T take() throws Exception {
         return this.queue.take();
+    }
+
+    @Override
+    protected void reOffer(@Nonnull T value) {
+        this.delayedQueue.offer(value, 0, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        if (this.destroyed.compareAndSet(false, true)) {
+            this.delayedQueue.destroy();
+        }
     }
 }

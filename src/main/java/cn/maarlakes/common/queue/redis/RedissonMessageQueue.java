@@ -11,14 +11,16 @@ import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 /**
+ * 基于 Redisson {@link RBlockingQueue} 的消息队列实现，支持跨进程消息传递。
+ *
  * @author linjpxc
  */
-class RedissonTopicQueue<T> extends AbstractBlockingQueue<T> {
+class RedissonMessageQueue<T> extends AbstractBlockingQueue<T> {
 
     private final String name;
     private final RBlockingQueue<T> queue;
 
-    public RedissonTopicQueue(@Nonnull String name, @Nonnull RBlockingQueue<T> queue, @Nonnull Executor executor) {
+    public RedissonMessageQueue(@Nonnull String name, @Nonnull RBlockingQueue<T> queue, @Nonnull Executor executor) {
         super(executor, null);
         this.queue = queue;
         this.name = name;
@@ -28,6 +30,11 @@ class RedissonTopicQueue<T> extends AbstractBlockingQueue<T> {
     @Override
     protected T take() throws Exception {
         return this.queue.take();
+    }
+
+    @Override
+    protected void reOffer(@Nonnull T value) {
+        this.queue.offer(value);
     }
 
     @Nonnull
@@ -67,13 +74,23 @@ class RedissonTopicQueue<T> extends AbstractBlockingQueue<T> {
     }
 
     @Override
+    public T poll() {
+        return this.queue.poll();
+    }
+
+    @Override
+    public CompletionStage<T> pollAsync() {
+        return this.queue.pollAsync().toCompletableFuture();
+    }
+
+    @Override
     public void clear() {
         this.queue.clear();
     }
 
     @Override
     public CompletionStage<Void> clearAsync() {
-        return CompletableFuture.runAsync(this.queue::clear);
+        return CompletableFuture.runAsync(this.queue::clear, this.executor);
     }
 
     @Override
@@ -100,7 +117,7 @@ class RedissonTopicQueue<T> extends AbstractBlockingQueue<T> {
     public List<? extends T> removeIf(@Nonnull Predicate<T> predicate) {
         final List<T> list = new ArrayList<>();
         this.queue.removeIf(item -> {
-            if (predicate.test(item)){
+            if (predicate.test(item)) {
                 list.add(item);
                 return true;
             }
@@ -117,11 +134,5 @@ class RedissonTopicQueue<T> extends AbstractBlockingQueue<T> {
     @Override
     public CompletionStage<Boolean> containsAsync(@Nonnull T value) {
         return this.queue.containsAsync(value).toCompletableFuture();
-    }
-
-    @Nonnull
-    @Override
-    public Iterator<T> iterator() {
-        return this.queue.iterator();
     }
 }
