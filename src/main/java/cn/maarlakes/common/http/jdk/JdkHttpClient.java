@@ -48,65 +48,27 @@ public class JdkHttpClient implements HttpClient {
     @Override
     public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
         return CompletableFuture.supplyAsync(() -> {
-            HttpURLConnection connection = null;
             try {
                 final URL url = toUrl(request);
-                if (config != null && config.getProxy() != null) {
-                    connection = (HttpURLConnection) url.openConnection(config.getProxy());
-                    final ProxyAuthentication proxyAuthentication = config.getProxyAuthentication();
-                    if (proxyAuthentication != null) {
-                        this.setProxyAuthorization(connection, config.getProxy(), proxyAuthentication);
+                HttpURLConnection connection = createConnection(url, request, config);
+                Response response = doExecute(connection, request, url);
+                if (response.getStatusCode() == 407 && config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
+                    connection = createConnection(url, request, config);
+                    boolean isProxy = false;
+                    for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                        if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
+                            isProxy = authenticator.authenticate(connection, response, config.getProxy(), config.getProxyAuthentication());
+                            break;
+                        }
                     }
-                } else {
-                    connection = (HttpURLConnection) url.openConnection();
-                }
-                connection.setDoInput(true);
-                connection.setInstanceFollowRedirects(config == null || config.isRedirectsEnabled());
-                connection.setRequestMethod(request.getMethod().name());
-                if (config != null) {
-                    if (config.getConnectTimeout() != null) {
-                        connection.setConnectTimeout((int) config.getConnectTimeout().toMillis());
-                    } else if (config.getRequestTimeout() != null) {
-                        connection.setConnectTimeout((int) config.getRequestTimeout().toMillis());
-                    }
-                    if (config.getResponseTimeout() != null) {
-                        connection.setReadTimeout((int) config.getResponseTimeout().toMillis());
+                    if (isProxy) {
+                        response = doExecute(connection, request, url);
                     }
                 }
-                if (!request.getHeaders().isEmpty()) {
-                    for (Header header : request.getHeaders()) {
-                        connection.setRequestProperty(header.getName(), header.get());
-                    }
-                }
-                if (CollectionUtils.isNotEmpty(request.getCookies())) {
-                    connection.setRequestProperty(HttpHeaderNames.COOKIE, request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
-                }
-                RequestBody<?> body = request.getBody();
-                if (body == null && CollectionUtils.isNotEmpty(request.getFormParams())) {
-                    body = new UrlEncodedFormEntityBody(request.getFormParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8"));
-                }
-                if (body != null) {
-                    connection.setDoOutput(true);
-                    connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE, body.getContentTypeHeader().get());
-                    try (OutputStream out = connection.getOutputStream()) {
-                        body.writeTo(out);
-                    }
-                }
-                connection.connect();
-                if (connection.getResponseCode() == 200) {
-                    try (InputStream in = connection.getInputStream()) {
-                        return new DefaultResponse(url, connection.getResponseCode(), connection.getResponseMessage(), StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
-                    }
-                }
-                try (InputStream in = connection.getErrorStream()) {
-                    return new DefaultResponse(url, connection.getResponseCode(), connection.getResponseMessage(), in == null ? null : StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
-                }
+
+                return response;
             } catch (Exception e) {
                 throw new HttpClientException(e.getMessage(), e);
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
             }
         }, this.executor);
     }
@@ -137,6 +99,70 @@ public class JdkHttpClient implements HttpClient {
                 map.entrySet().stream().filter(item -> item.getKey() != null).map(entry -> new DefaultHeader(entry.getKey(), entry.getValue())).collect(Collectors.toList())
                         .stream().collect(Collectors.toMap(DefaultHeader::getName, Function.identity()))
         );
+    }
+
+    private Response doExecute(HttpURLConnection connection, Request request, URL url) throws Exception {
+        try {
+            RequestBody<?> body = request.getBody();
+            if (body == null && CollectionUtils.isNotEmpty(request.getFormParams())) {
+                body = new UrlEncodedFormEntityBody(request.getFormParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8"));
+            }
+            if (body != null) {
+                connection.setDoOutput(true);
+                connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE, body.getContentTypeHeader().get());
+                try (OutputStream out = connection.getOutputStream()) {
+                    body.writeTo(out);
+                }
+            }
+            connection.connect();
+            if (connection.getResponseCode() == 200) {
+                try (InputStream in = connection.getInputStream()) {
+                    return new DefaultResponse(url, connection.getResponseCode(), connection.getResponseMessage(), StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
+                }
+            }
+            try (InputStream in = connection.getErrorStream()) {
+                return new DefaultResponse(url, connection.getResponseCode(), connection.getResponseMessage(), in == null ? null : StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
+            }
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private HttpURLConnection createConnection(@Nonnull URL url, @Nonnull Request request, RequestConfig config) throws Exception {
+        HttpURLConnection connection;
+        if (config != null && config.getProxy() != null) {
+            connection = (HttpURLConnection) url.openConnection(config.getProxy());
+            if (config.getProxyAuthentication() != null) {
+                this.setProxyAuthorization(connection, config.getProxy(), config.getProxyAuthentication());
+            }
+
+        } else {
+            connection = (HttpURLConnection) url.openConnection();
+        }
+        connection.setDoInput(true);
+        connection.setInstanceFollowRedirects(config == null || config.isRedirectsEnabled());
+        connection.setRequestMethod(request.getMethod().name());
+        if (config != null) {
+            if (config.getConnectTimeout() != null) {
+                connection.setConnectTimeout((int) config.getConnectTimeout().toMillis());
+            } else if (config.getRequestTimeout() != null) {
+                connection.setConnectTimeout((int) config.getRequestTimeout().toMillis());
+            }
+            if (config.getResponseTimeout() != null) {
+                connection.setReadTimeout((int) config.getResponseTimeout().toMillis());
+            }
+        }
+        if (!request.getHeaders().isEmpty()) {
+            for (Header header : request.getHeaders()) {
+                connection.setRequestProperty(header.getName(), header.get());
+            }
+        }
+        if (CollectionUtils.isNotEmpty(request.getCookies())) {
+            connection.setRequestProperty(HttpHeaderNames.COOKIE, request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
+        }
+        return connection;
     }
 
     private void setProxyAuthorization(@Nonnull HttpURLConnection connection, @Nonnull Proxy proxy, @Nonnull ProxyAuthentication authentication) {

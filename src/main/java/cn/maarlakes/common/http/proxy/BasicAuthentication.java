@@ -4,13 +4,13 @@ import jakarta.annotation.Nonnull;
 
 import java.util.Objects;
 
-public class UsernamePasswordProxyAuthentication implements ProxyAuthentication {
+public class BasicAuthentication implements ProxyAuthentication {
     private static final long serialVersionUID = -5697995558694700806L;
 
     private final String username;
     private final String password;
 
-    public UsernamePasswordProxyAuthentication(@Nonnull String username, @Nonnull String password) {
+    public BasicAuthentication(@Nonnull String username, @Nonnull String password) {
         this.username = username;
         this.password = password;
     }
@@ -27,8 +27,8 @@ public class UsernamePasswordProxyAuthentication implements ProxyAuthentication 
 
     @Override
     public boolean equals(Object o) {
-        if (o instanceof UsernamePasswordProxyAuthentication) {
-            final UsernamePasswordProxyAuthentication that = (UsernamePasswordProxyAuthentication) o;
+        if (o instanceof BasicAuthentication) {
+            final BasicAuthentication that = (BasicAuthentication) o;
             return Objects.equals(username, that.username) && Objects.equals(password, that.password);
         }
         return false;

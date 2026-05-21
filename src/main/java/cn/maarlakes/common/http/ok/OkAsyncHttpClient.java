@@ -141,12 +141,23 @@ public class OkAsyncHttpClient implements HttpClient {
             if (config.getProxy() != null) {
                 builder.proxy(config.getProxy());
                 if (config.getProxyAuthentication() != null) {
+                    final List<Authenticator> authenticators = new ArrayList<>();
                     for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
                         final Authenticator a = authenticator.authenticate(config.getProxy(), config.getProxyAuthentication());
                         if (a != null) {
-                            builder.proxyAuthenticator(a);
-                            break;
+                            authenticators.add(a);
                         }
+                    }
+                    if (!authenticators.isEmpty()) {
+                        builder.proxyAuthenticator((route, response) -> {
+                            for (Authenticator a : authenticators) {
+                                final okhttp3.Request newRequest = a.authenticate(route, response);
+                                if (newRequest != null) {
+                                    return newRequest;
+                                }
+                            }
+                            return null;
+                        });
                     }
                 }
             }
