@@ -2,7 +2,9 @@ package cn.maarlakes.common.http;
 
 import cn.maarlakes.common.http.proxy.ProxyAuthentication;
 import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 
+import javax.net.ssl.SSLContext;
 import java.io.Serializable;
 import java.net.Proxy;
 import java.time.Duration;
@@ -12,7 +14,7 @@ import java.time.Duration;
  */
 public interface RequestConfig extends Serializable {
 
-    boolean isRedirectsEnabled();
+    Boolean isRedirectsEnabled();
 
     Duration getRequestTimeout();
 
@@ -22,9 +24,12 @@ public interface RequestConfig extends Serializable {
 
     Proxy getProxy();
 
-    int getMaxRedirects();
+    Integer getMaxRedirects();
 
     ProxyAuthentication getProxyAuthentication();
+
+    @Nullable
+    SSLContext getSslContext();
 
     @Nonnull
     static Builder builder() {
@@ -34,7 +39,7 @@ public interface RequestConfig extends Serializable {
     interface Builder {
 
         @Nonnull
-        Builder redirectsEnabled(boolean enabled);
+        Builder redirectsEnabled(Boolean enabled);
 
         @Nonnull
         Builder requestTimeout(Duration timeout);
@@ -52,7 +57,10 @@ public interface RequestConfig extends Serializable {
         Builder proxyAuthentication(ProxyAuthentication proxyAuthentication);
 
         @Nonnull
-        Builder maxRedirects(int maxRedirects);
+        Builder maxRedirects(Integer maxRedirects);
+
+        @Nonnull
+        Builder sslContext(SSLContext sslContext);
 
         @Nonnull
         RequestConfig build();

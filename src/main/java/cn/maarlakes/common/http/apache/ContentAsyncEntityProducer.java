@@ -74,9 +74,7 @@ class ContentAsyncEntityProducer implements AsyncEntityProducer {
             contentChannel.transferTo(new WritableByteChannel() {
                 @Override
                 public int write(ByteBuffer src) throws IOException {
-                    final int count = channel.write(src);
-                    channel.endStream();
-                    return count;
+                    return channel.write(src);
                 }
 
                 @Override
@@ -86,16 +84,16 @@ class ContentAsyncEntityProducer implements AsyncEntityProducer {
 
                 @Override
                 public void close() throws IOException {
-
                 }
             });
+            channel.endStream();
         } else {
             this.body.writeTo((buffer, offset, length) -> {
                 final ByteBuffer buf = ByteBuffer.wrap(buffer, offset, length);
                 channel.write(buf);
-                channel.endStream();
                 buf.clear();
             });
+            channel.endStream();
         }
     }
 

@@ -2,6 +2,7 @@ package cn.maarlakes.common.http;
 
 import jakarta.annotation.Nonnull;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -28,7 +29,8 @@ public class DefaultHttpHeaders implements HttpHeaders {
 
     @Override
     public Header getHeader(@Nonnull String name) {
-        return this.headers.get(name);
+        final Header header = this.headers.get(name);
+        return header != null ? header : new DefaultHeader(name, Collections.emptyList());
     }
 
     @Override

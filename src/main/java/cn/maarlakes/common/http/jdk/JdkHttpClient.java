@@ -10,6 +10,8 @@ import cn.maarlakes.common.utils.Lazy;
 import cn.maarlakes.common.utils.StreamUtils;
 import jakarta.annotation.Nonnull;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -19,7 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -30,30 +35,45 @@ public class JdkHttpClient implements HttpClient {
 
     private final Executor executor;
     private final boolean ownsExecutor;
+    private final SSLContext sslContext;
 
     public JdkHttpClient() {
-        this(new ForkJoinPool(), true);
+        this(new ForkJoinPool(), true, null);
     }
 
     public JdkHttpClient(@Nonnull Executor executor) {
-        this(executor, false);
+        this(executor, false, null);
     }
 
-    private JdkHttpClient(@Nonnull Executor executor, boolean ownsExecutor) {
+    public JdkHttpClient(@Nonnull Executor executor, SSLContext sslContext) {
+        this(executor, false, sslContext);
+    }
+
+    private JdkHttpClient(@Nonnull Executor executor, boolean ownsExecutor, SSLContext sslContext) {
         this.executor = executor;
         this.ownsExecutor = ownsExecutor;
+        this.sslContext = sslContext;
     }
 
     @Nonnull
     @Override
-    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
-        return CompletableFuture.supplyAsync(() -> {
+    public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
+        final ResponseFuture future = new ResponseFuture();
+        this.executor.execute(() -> {
             try {
+                if (future.isCancelled()) {
+                    return;
+                }
                 final URL url = toUrl(request);
                 HttpURLConnection connection = createConnection(url, request, config);
+                future.setConnection(connection);
                 Response response = doExecute(connection, request, url);
-                if (response.getStatusCode() == 407 && config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
+                if (!future.isCancelled() && response.getStatusCode() == 407 && config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
                     connection = createConnection(url, request, config);
+                    future.setConnection(connection);
+                    if (future.isCancelled()) {
+                        return;
+                    }
                     boolean isProxy = false;
                     for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
                         if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
@@ -61,16 +81,22 @@ public class JdkHttpClient implements HttpClient {
                             break;
                         }
                     }
-                    if (isProxy) {
-                        response = doExecute(connection, request, url);
+                    if (!isProxy) {
+                        return;
                     }
+                    response = doExecute(connection, request, url);
                 }
 
-                return response;
+                if (!future.isCancelled()) {
+                    future.complete(response);
+                }
             } catch (Exception e) {
-                throw new HttpClientException(e.getMessage(), e);
+                if (!future.isCancelled()) {
+                    future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+                }
             }
-        }, this.executor);
+        });
+        return future;
     }
 
     @Override
@@ -109,15 +135,19 @@ public class JdkHttpClient implements HttpClient {
             }
             if (body != null) {
                 connection.setDoOutput(true);
-                connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE, body.getContentTypeHeader().get());
+                final Header contentTypeHeader = body.getContentTypeHeader();
+                if (contentTypeHeader != null) {
+                    connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE, contentTypeHeader.get());
+                }
                 try (OutputStream out = connection.getOutputStream()) {
                     body.writeTo(out);
                 }
             }
             connection.connect();
-            if (connection.getResponseCode() == 200) {
+            final int responseCode = connection.getResponseCode();
+            if (responseCode >= 200 && responseCode < 300) {
                 try (InputStream in = connection.getInputStream()) {
-                    return new DefaultResponse(url, connection.getResponseCode(), connection.getResponseMessage(), StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
+                    return new DefaultResponse(url, responseCode, connection.getResponseMessage(), StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
                 }
             }
             try (InputStream in = connection.getErrorStream()) {
@@ -142,7 +172,9 @@ public class JdkHttpClient implements HttpClient {
             connection = (HttpURLConnection) url.openConnection();
         }
         connection.setDoInput(true);
-        connection.setInstanceFollowRedirects(config == null || config.isRedirectsEnabled());
+        if (config != null && config.isRedirectsEnabled() != null) {
+            connection.setInstanceFollowRedirects(config.isRedirectsEnabled());
+        }
         connection.setRequestMethod(request.getMethod().name());
         if (config != null) {
             if (config.getConnectTimeout() != null) {
@@ -162,6 +194,13 @@ public class JdkHttpClient implements HttpClient {
         if (CollectionUtils.isNotEmpty(request.getCookies())) {
             connection.setRequestProperty(HttpHeaderNames.COOKIE, request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
         }
+        if (connection instanceof HttpsURLConnection) {
+            final SSLContext requestSsl = config != null ? config.getSslContext() : null;
+            final SSLContext effectiveSsl = requestSsl != null ? requestSsl : this.sslContext;
+            if (effectiveSsl != null) {
+                ((HttpsURLConnection) connection).setSSLSocketFactory(effectiveSsl.getSocketFactory());
+            }
+        }
         return connection;
     }
 
@@ -171,6 +210,26 @@ public class JdkHttpClient implements HttpClient {
                 authenticator.authenticate(connection, proxy, authentication);
                 break;
             }
+        }
+    }
+
+    private static class ResponseFuture extends CompletableFuture<Response> {
+        private volatile HttpURLConnection connection;
+
+        void setConnection(@Nonnull HttpURLConnection connection) {
+            if (this.isCancelled()) {
+                connection.disconnect();
+            }
+            this.connection = connection;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            final HttpURLConnection connection = this.connection;
+            if (connection != null) {
+                connection.disconnect();
+            }
+            return super.cancel(mayInterruptIfRunning);
         }
     }
 

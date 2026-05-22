@@ -2,7 +2,6 @@ package cn.maarlakes.common.http;
 
 import cn.maarlakes.common.function.Consumer3;
 import cn.maarlakes.common.utils.StreamUtils;
-import com.alibaba.fastjson2.JSON;
 import jakarta.annotation.Nonnull;
 
 import java.io.InputStream;
@@ -49,18 +48,6 @@ public interface ResponseBody {
     default byte[] asBytes() {
         try (InputStream content = this.getContent()) {
             return StreamUtils.readAllBytes(content);
-        } catch (Exception e) {
-            throw new HttpClientException(e.getMessage(), e);
-        }
-    }
-
-    default <T> T toJsonObject(@Nonnull Class<T> type) {
-        return this.toJsonObject(type, this.getCharset());
-    }
-
-    default <T> T toJsonObject(@Nonnull Class<T> type, @Nonnull Charset charset) {
-        try (InputStream content = this.getContent()) {
-            return JSON.parseObject(content, charset, type);
         } catch (Exception e) {
             throw new HttpClientException(e.getMessage(), e);
         }

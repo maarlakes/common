@@ -3,7 +3,7 @@ package cn.maarlakes.common.http;
 import jakarta.annotation.Nonnull;
 
 import java.io.Closeable;
-import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author linjpxc
@@ -11,10 +11,10 @@ import java.util.concurrent.CompletionStage;
 public interface HttpClient extends Closeable {
 
     @Nonnull
-    default CompletionStage<? extends Response> execute(@Nonnull Request request) {
+    default CompletableFuture<Response> execute(@Nonnull Request request) {
         return execute(request, null);
     }
 
     @Nonnull
-    CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config);
+    CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config);
 }

@@ -80,8 +80,7 @@ class HttpEntityAsyncEntityProducer implements AsyncEntityProducer {
     public void releaseResources() {
         try {
             this.entity.close();
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
+        } catch (IOException ignored) {
         }
     }
 }

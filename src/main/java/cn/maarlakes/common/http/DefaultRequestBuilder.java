@@ -5,6 +5,7 @@ import jakarta.annotation.Nonnull;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -89,6 +90,12 @@ class DefaultRequestBuilder implements Request.Builder {
     @Nonnull
     @Override
     public Request build() {
+        if (method == null) {
+            throw new IllegalStateException("HTTP method is required");
+        }
+        if (uri == null) {
+            throw new IllegalStateException("URI is required");
+        }
         return new DefaultRequest();
     }
 
@@ -116,7 +123,7 @@ class DefaultRequestBuilder implements Request.Builder {
         @Nonnull
         @Override
         public List<? extends Cookie> getCookies() {
-            return cookies;
+            return Collections.unmodifiableList(cookies);
         }
 
         @Override
@@ -126,12 +133,12 @@ class DefaultRequestBuilder implements Request.Builder {
 
         @Override
         public List<? extends NameValuePair> getQueryParams() {
-            return queryParams;
+            return Collections.unmodifiableList(queryParams);
         }
 
         @Override
         public List<? extends NameValuePair> getFormParams() {
-            return formParams;
+            return Collections.unmodifiableList(formParams);
         }
 
         @Override

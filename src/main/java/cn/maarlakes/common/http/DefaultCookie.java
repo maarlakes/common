@@ -151,7 +151,10 @@ final class DefaultCookie implements Cookie {
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.name);
+        int result = name.hashCode();
+        result = 31 * result + (domain == null ? 0 : domain.toLowerCase().hashCode());
+        result = 31 * result + (path == null ? 0 : path.hashCode());
+        return result;
     }
 
     @Override

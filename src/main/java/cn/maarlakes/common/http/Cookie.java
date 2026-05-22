@@ -1,6 +1,7 @@
 package cn.maarlakes.common.http;
 
 import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -86,6 +87,7 @@ public interface Cookie extends Comparable<Cookie>, Serializable {
         Strict,
         None;
 
+        @Nullable
         public static SameSite of(@Nonnull String value) {
             for (SameSite sameSite : SameSite.values()) {
                 if (sameSite.name().equalsIgnoreCase(value)) {

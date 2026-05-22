@@ -11,6 +11,6 @@ public final class RequestHeaders {
 
     @Nonnull
     public static String toString(@Nonnull Header header) {
-        return String.join(";", header.getValues());
+        return String.join(", ", header.getValues());
     }
 }

@@ -4,7 +4,6 @@ import cn.maarlakes.common.http.encoder.ResponseBodyEncoder;
 import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.Lazy;
 import cn.maarlakes.common.utils.StreamUtils;
-import com.alibaba.fastjson2.JSON;
 import jakarta.annotation.Nonnull;
 
 import java.io.ByteArrayInputStream;
@@ -84,11 +83,6 @@ public class ByteArrayResponseBody implements ResponseBody {
     @Override
     public byte[] asBytes() {
         return this.contentUnzip();
-    }
-
-    @Override
-    public <T> T toJsonObject(@Nonnull Class<T> type, @Nonnull Charset charset) {
-        return JSON.parseObject(this.contentUnzip(), 0, this.content.length, charset, type);
     }
 
     @Override

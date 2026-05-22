@@ -17,6 +17,8 @@ import org.apache.hc.client5.http.entity.mime.InputStreamBody;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.EndpointDetails;
@@ -24,23 +26,24 @@ import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
+import org.apache.hc.core5.http.nio.ssl.BasicClientTlsStrategy;
 import org.apache.hc.core5.http.nio.support.AbstractAsyncResponseConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncRequestBuilder;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.apache.hc.core5.util.Timeout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 /**
@@ -48,10 +51,16 @@ import java.util.stream.Collectors;
  */
 public class ApacheAsyncHttpClient implements HttpClient {
 
+    private static final Logger log = LoggerFactory.getLogger(ApacheAsyncHttpClient.class);
+
     private final HttpAsyncClient client;
 
     public ApacheAsyncHttpClient() {
         this(HttpAsyncClientBuilder.create().build());
+    }
+
+    public ApacheAsyncHttpClient(@Nonnull SSLContext sslContext) {
+        this(buildClient(sslContext));
     }
 
     public ApacheAsyncHttpClient(@Nonnull HttpAsyncClient httpClient) {
@@ -64,10 +73,22 @@ public class ApacheAsyncHttpClient implements HttpClient {
         }
     }
 
+    private static CloseableHttpAsyncClient buildClient(SSLContext sslContext) {
+        final CloseableHttpAsyncClient client = HttpAsyncClients.custom()
+                .setConnectionManager(
+                        PoolingAsyncClientConnectionManagerBuilder.create()
+                                .setTlsStrategy(new BasicClientTlsStrategy(sslContext))
+                                .build()
+                )
+                .build();
+        client.start();
+        return client;
+    }
+
     @Nonnull
     @Override
     @SuppressWarnings("DuplicatedCode")
-    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
+    public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
         try {
             final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
                     .setUri(Apaches.toUri(request));
@@ -90,7 +111,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
             if (requestConfig != null) {
                 context.setRequestConfig(requestConfig);
             }
-            if (config.getProxy() != null && config.getProxyAuthentication() != null) {
+            if (config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
                 for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
                     if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
                         authenticator.authenticate(context, config.getProxy(), config.getProxyAuthentication());
@@ -102,8 +123,13 @@ public class ApacheAsyncHttpClient implements HttpClient {
             if (CollectionUtils.isNotEmpty(request.getCookies())) {
                 builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
             }
-            final CompletableFuture<Response> future = new CompletableFuture<>();
-            this.client.execute(builder.build(), new ResponseAsyncResponseConsumer(request.getUri(), context), null, context, new FutureCallback<Response>() {
+
+            if (config != null && config.getSslContext() != null) {
+                log.warn("Apache HttpClient 5不支持按请求进行SSLContext，请在客户端构建时配置SSL。");
+            }
+
+            final ResponseFuture future = new ResponseFuture();
+            future.future = this.client.execute(builder.build(), new ResponseAsyncResponseConsumer(request.getUri(), context), null, context, new FutureCallback<Response>() {
                 @Override
                 public void completed(Response response) {
                     future.complete(response);
@@ -116,9 +142,10 @@ public class ApacheAsyncHttpClient implements HttpClient {
 
                 @Override
                 public void cancelled() {
-                    future.cancel(true);
+                    future.cancel(false);
                 }
             });
+
             return future;
         } catch (Exception e) {
             return CompletableFuture.supplyAsync(() -> {
@@ -144,7 +171,9 @@ public class ApacheAsyncHttpClient implements HttpClient {
             return null;
         }
         final org.apache.hc.client5.http.config.RequestConfig.Builder builder = org.apache.hc.client5.http.config.RequestConfig.custom();
-        builder.setRedirectsEnabled(config.isRedirectsEnabled());
+        if (config.isRedirectsEnabled() != null) {
+            builder.setRedirectsEnabled(config.isRedirectsEnabled());
+        }
         if (config.getRequestTimeout() != null) {
             builder.setConnectionRequestTimeout(Timeout.ofMilliseconds(config.getRequestTimeout().toMillis()));
         }
@@ -158,7 +187,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
             final InetSocketAddress address = (InetSocketAddress) config.getProxy().address();
             builder.setProxy(new HttpHost(address.getAddress(), address.getPort()));
         }
-        if (config.getMaxRedirects() > 0) {
+        if (config.getMaxRedirects() != null && config.getMaxRedirects() > 0) {
             builder.setMaxRedirects(config.getMaxRedirects());
         }
         return builder.build();
@@ -186,7 +215,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
     private static void settingMultipart(@Nonnull AsyncRequestBuilder builder, @Nonnull MultipartBody body, Charset charset) {
         if (CollectionUtils.isNotEmpty(body.getContent())) {
             final MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
-            multipartEntityBuilder.setContentType(Apaches.toApacheContentType(body.getContentType()));
+            multipartEntityBuilder.setContentType(Apaches.toApacheContentType(Objects.requireNonNull(body.getContentType())));
             for (MultipartPart<?> part : body.getContent()) {
                 org.apache.hc.client5.http.entity.mime.ContentBody contentBody;
                 if (part instanceof FilePart) {
@@ -239,6 +268,19 @@ public class ApacheAsyncHttpClient implements HttpClient {
         @Override
         public void informationResponse(HttpResponse response, HttpContext context) throws HttpException, IOException {
 
+        }
+    }
+
+    private static class ResponseFuture extends CompletableFuture<Response> {
+        private volatile Future<?> future;
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            final Future<?> future = this.future;
+            if (future != null) {
+                future.cancel(mayInterruptIfRunning);
+            }
+            return super.cancel(mayInterruptIfRunning);
         }
     }
 

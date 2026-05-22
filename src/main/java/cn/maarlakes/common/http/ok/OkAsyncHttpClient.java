@@ -1,6 +1,5 @@
 package cn.maarlakes.common.http.ok;
 
-import cn.maarlakes.common.function.Function0;
 import cn.maarlakes.common.http.*;
 import cn.maarlakes.common.http.Request;
 import cn.maarlakes.common.http.Response;
@@ -8,19 +7,18 @@ import cn.maarlakes.common.http.ResponseBody;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
 import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.CollectionUtils;
-import cn.maarlakes.common.utils.Lazy;
 import jakarta.annotation.Nonnull;
 import okhttp3.*;
 import okhttp3.Cookie;
 import okhttp3.RequestBody;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 
 /**
  * @author linjpxc
@@ -28,18 +26,24 @@ import java.util.concurrent.CompletionStage;
 public class OkAsyncHttpClient implements HttpClient {
 
     private final OkHttpClient client;
+    private final SSLContext sslContext;
 
     public OkAsyncHttpClient() {
-        this(new OkHttpClient.Builder().build());
+        this(new OkHttpClient.Builder().build(), null);
     }
 
     public OkAsyncHttpClient(@Nonnull OkHttpClient client) {
+        this(client, null);
+    }
+
+    public OkAsyncHttpClient(@Nonnull OkHttpClient client, SSLContext sslContext) {
         this.client = client;
+        this.sslContext = sslContext;
     }
 
     @Nonnull
     @Override
-    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
+    public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
         try {
             final HttpUrl.Builder builder = Objects.requireNonNull(HttpUrl.get(request.getUri())).newBuilder();
             if (CollectionUtils.isNotEmpty(request.getQueryParams())) {
@@ -57,8 +61,10 @@ public class OkAsyncHttpClient implements HttpClient {
             }
             final List<cn.maarlakes.common.http.Cookie> responseCookies = new ArrayList<>();
             final OkHttpClient client = this.getClient(request, responseCookies, config);
-            final CompletableFuture<Response> future = new CompletableFuture<>();
-            client.newCall(requestBuilder.build()).enqueue(new Callback() {
+            final Call call = client.newCall(requestBuilder.build());
+            final ResponseFuture future = new ResponseFuture(call);
+
+            call.enqueue(new Callback() {
                 @Override
                 public void onFailure(@Nonnull Call call, @Nonnull IOException e) {
                     future.completeExceptionally(new HttpClientException(e.getMessage(), e));
@@ -162,6 +168,11 @@ public class OkAsyncHttpClient implements HttpClient {
                 }
             }
         }
+        final SSLContext requestSsl = config != null ? config.getSslContext() : null;
+        final SSLContext effectiveSsl = requestSsl != null ? requestSsl : this.sslContext;
+        if (effectiveSsl != null) {
+            builder.sslSocketFactory(effectiveSsl.getSocketFactory());
+        }
         return builder.build();
     }
 
@@ -172,7 +183,9 @@ public class OkAsyncHttpClient implements HttpClient {
                 final cn.maarlakes.common.http.body.multipart.MultipartBody multipartBody = (cn.maarlakes.common.http.body.multipart.MultipartBody) request.getBody();
                 if (CollectionUtils.isNotEmpty(multipartBody.getContent())) {
                     final MultipartBody.Builder builder = new MultipartBody.Builder();
-                    builder.setType(Objects.requireNonNull(MediaType.parse(ContentTypes.toString(multipartBody.getContentType()))));
+                    if (multipartBody.getContentType() != null) {
+                        builder.setType(Objects.requireNonNull(MediaType.parse(ContentTypes.toString(multipartBody.getContentType()))));
+                    }
                     for (MultipartPart<?> part : multipartBody.getContent()) {
                         final Headers.Builder headers = new Headers.Builder();
                         if (!part.getHeaders().isEmpty()) {
@@ -203,34 +216,51 @@ public class OkAsyncHttpClient implements HttpClient {
 
     @Override
     public void close() throws IOException {
+    }
 
+    private static class ResponseFuture extends CompletableFuture<Response> {
+        private final Call call;
+
+        private ResponseFuture(Call call) {
+            this.call = call;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (mayInterruptIfRunning) {
+                this.call.cancel();
+            }
+            return super.cancel(mayInterruptIfRunning);
+        }
     }
 
     private static class DefaultResponse implements Response {
 
         private final okhttp3.Response response;
         private final List<cn.maarlakes.common.http.Cookie> cookies;
-        private final Function0<ResponseBody> bodyFactory;
+        private final ResponseBody body;
 
         private DefaultResponse(@Nonnull okhttp3.Response response, List<cn.maarlakes.common.http.Cookie> cookies) {
             this.response = response;
             this.cookies = cookies;
 
-            this.bodyFactory = Lazy.of(() -> {
+            final okhttp3.ResponseBody responseBody = response.body();
+            if (responseBody == null) {
+                this.body = new ByteArrayResponseBody(new byte[0], null, null);
+                response.close();
+            } else {
                 try {
-                    final okhttp3.ResponseBody body = response.body();
-                    if (body == null) {
-                        return new ByteArrayResponseBody(new byte[0], null, null);
-                    }
-                    return new ByteArrayResponseBody(
-                            body.bytes(),
-                            Optional.ofNullable(body.contentType()).map(MediaType::toString).map(ContentType::parse).orElse(null),
+                    this.body = new ByteArrayResponseBody(
+                            responseBody.bytes(),
+                            Optional.ofNullable(responseBody.contentType()).map(MediaType::toString).map(ContentType::parse).orElse(null),
                             this.getHeaders().getHeader(HttpHeaderNames.CONTENT_ENCODING)
                     );
+                } catch (IOException e) {
+                    throw new HttpClientException(e.getMessage(), e);
                 } finally {
                     response.close();
                 }
-            });
+            }
         }
 
         @Override
@@ -246,7 +276,7 @@ public class OkAsyncHttpClient implements HttpClient {
         @Nonnull
         @Override
         public ResponseBody getBody() {
-            return this.bodyFactory.get();
+            return this.body;
         }
 
         @Override
@@ -306,9 +336,5 @@ public class OkAsyncHttpClient implements HttpClient {
             return new InetSocketAddress(url.host(), port);
         }
 
-        @Override
-        public void close() {
-            this.response.close();
-        }
     }
 }

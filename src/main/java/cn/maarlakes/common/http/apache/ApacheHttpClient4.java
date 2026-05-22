@@ -20,6 +20,7 @@ import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.client.utils.URIUtils;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.mime.FormBodyPartBuilder;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
@@ -31,7 +32,10 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -40,13 +44,18 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 
 /**
  * @author linjpxc
  */
 public class ApacheHttpClient4 implements HttpClient {
+
+    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClient4.class);
 
     private final org.apache.http.client.HttpClient client;
     private final Executor executor;
@@ -58,6 +67,10 @@ public class ApacheHttpClient4 implements HttpClient {
 
     public ApacheHttpClient4(@Nonnull Executor executor) {
         this(HttpClientBuilder.create().build(), executor, false);
+    }
+
+    public ApacheHttpClient4(@Nonnull Executor executor, SSLContext sslContext) {
+        this(buildClient(sslContext), executor, true);
     }
 
     public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client) {
@@ -74,13 +87,25 @@ public class ApacheHttpClient4 implements HttpClient {
         this.ownsExecutor = ownsExecutor;
     }
 
+    private static org.apache.http.client.HttpClient buildClient(SSLContext sslContext) {
+        final HttpClientBuilder builder = HttpClientBuilder.create();
+        if (sslContext != null) {
+            builder.setSSLSocketFactory(new SSLConnectionSocketFactory(sslContext));
+        }
+        return builder.build();
+    }
+
     @Nonnull
     @Override
     @SuppressWarnings("DuplicatedCode")
-    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
-        return CompletableFuture.supplyAsync(() -> {
+    public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
+        final ResponseFuture future = new ResponseFuture();
+        this.executor.execute(() -> {
             InputStream contentStream = null;
             try {
+                if (config != null && config.getSslContext() != null) {
+                    log.warn("Apache HttpClient 4不支持按请求进行SSLContext，请在客户端构建时配置SSL。");
+                }
                 final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
                         .setUri(toUri(request));
                 settingHeader(builder, request);
@@ -94,7 +119,8 @@ public class ApacheHttpClient4 implements HttpClient {
                     } else {
                         contentStream = request.getBody().getContentStream();
                         if (contentStream != null) {
-                            builder.setEntity(new InputStreamEntity(contentStream, toApacheContentType(request.getBody().getContentType())));
+                            final ContentType ct = request.getBody().getContentType();
+                            builder.setEntity(new InputStreamEntity(contentStream, ct != null ? toApacheContentType(ct) : null));
                         }
                     }
                 }
@@ -104,7 +130,7 @@ public class ApacheHttpClient4 implements HttpClient {
                 if (requestConfig != null) {
                     context.setRequestConfig(requestConfig);
                 }
-                if (config.getProxy() != null && config.getProxyAuthentication() != null) {
+                if (config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
                     for (Apache4ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(Apache4ProxyAuthenticator.class, this.getClass().getClassLoader())) {
                         if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
                             authenticator.authenticate(context, config.getProxy(), config.getProxyAuthentication());
@@ -116,11 +142,20 @@ public class ApacheHttpClient4 implements HttpClient {
                 if (CollectionUtils.isNotEmpty(request.getCookies())) {
                     builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
                 }
-
                 final HttpUriRequest uriRequest = builder.build();
-                return this.client.execute(determineTarget(uriRequest), uriRequest, (ResponseHandler<Response>) response -> new DefaultResponse(request.getUri(), response, context), context);
+                future.request = uriRequest;
+                if (future.isCancelled()) {
+                    return;
+                }
+
+                final Response result = this.client.execute(determineTarget(uriRequest), uriRequest, (ResponseHandler<Response>) response -> new DefaultResponse(request.getUri(), response, context), context);
+                if (!future.isCancelled()) {
+                    future.complete(result);
+                }
             } catch (Exception e) {
-                throw new HttpClientException(e.getMessage(), e);
+                if (!future.isCancelled()) {
+                    future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+                }
             } finally {
                 if (contentStream != null) {
                     try {
@@ -129,7 +164,8 @@ public class ApacheHttpClient4 implements HttpClient {
                     }
                 }
             }
-        }, this.executor);
+        });
+        return future;
     }
 
     @Override
@@ -164,7 +200,9 @@ public class ApacheHttpClient4 implements HttpClient {
             return null;
         }
         final org.apache.http.client.config.RequestConfig.Builder builder = org.apache.http.client.config.RequestConfig.custom();
-        builder.setRedirectsEnabled(config.isRedirectsEnabled());
+        if (config.isRedirectsEnabled() != null) {
+            builder.setRedirectsEnabled(config.isRedirectsEnabled());
+        }
         if (config.getRequestTimeout() != null) {
             builder.setConnectionRequestTimeout((int) config.getRequestTimeout().toMillis());
         }
@@ -178,7 +216,7 @@ public class ApacheHttpClient4 implements HttpClient {
             final InetSocketAddress address = (InetSocketAddress) config.getProxy().address();
             builder.setProxy(new HttpHost(address.getAddress(), address.getPort()));
         }
-        if (config.getMaxRedirects() > 0) {
+        if (config.getMaxRedirects() != null && config.getMaxRedirects() > 0) {
             builder.setMaxRedirects(config.getMaxRedirects());
         }
         return builder.build();
@@ -264,6 +302,21 @@ public class ApacheHttpClient4 implements HttpClient {
             }
         }
         return target;
+    }
+
+    private static final class ResponseFuture extends CompletableFuture<Response> {
+        private HttpUriRequest request;
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (mayInterruptIfRunning) {
+                final HttpUriRequest request = this.request;
+                if (request != null) {
+                    request.abort();
+                }
+            }
+            return super.cancel(mayInterruptIfRunning);
+        }
     }
 
     private static class DefaultResponse implements Response {

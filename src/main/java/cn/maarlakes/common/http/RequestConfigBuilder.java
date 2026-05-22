@@ -3,6 +3,7 @@ package cn.maarlakes.common.http;
 import cn.maarlakes.common.http.proxy.ProxyAuthentication;
 import jakarta.annotation.Nonnull;
 
+import javax.net.ssl.SSLContext;
 import java.net.Proxy;
 import java.time.Duration;
 import java.util.Objects;
@@ -12,17 +13,18 @@ import java.util.Objects;
  */
 class RequestConfigBuilder implements RequestConfig.Builder {
 
-    private boolean redirectsEnabled = true;
+    private Boolean redirectsEnabled;
     private Duration requestTimeout;
     private Duration connectTimeout;
     private Duration responseTimeout;
     private Proxy proxy;
     private ProxyAuthentication proxyAuthentication;
-    private int maxRedirects = -1;
+    private Integer maxRedirects;
+    private SSLContext sslContext;
 
     @Nonnull
     @Override
-    public RequestConfig.Builder redirectsEnabled(boolean enabled) {
+    public RequestConfig.Builder redirectsEnabled(Boolean enabled) {
         this.redirectsEnabled = enabled;
         return this;
     }
@@ -64,29 +66,37 @@ class RequestConfigBuilder implements RequestConfig.Builder {
 
     @Nonnull
     @Override
-    public RequestConfig.Builder maxRedirects(int maxRedirects) {
+    public RequestConfig.Builder maxRedirects(Integer maxRedirects) {
         this.maxRedirects = maxRedirects;
         return this;
     }
 
     @Nonnull
     @Override
+    public RequestConfig.Builder sslContext(SSLContext sslContext) {
+        this.sslContext = sslContext;
+        return this;
+    }
+
+    @Nonnull
+    @Override
     public RequestConfig build() {
-        return new DefaultRequestConfig(this.redirectsEnabled, this.requestTimeout, this.connectTimeout, this.responseTimeout, this.proxy, this.proxyAuthentication, this.maxRedirects);
+        return new DefaultRequestConfig(this.redirectsEnabled, this.requestTimeout, this.connectTimeout, this.responseTimeout, this.proxy, this.proxyAuthentication, this.maxRedirects, this.sslContext);
     }
 
     private static class DefaultRequestConfig implements RequestConfig {
         private static final long serialVersionUID = 8469433946916457328L;
 
-        private final boolean redirectsEnabled;
+        private final Boolean redirectsEnabled;
         private final Duration requestTimeout;
         private final Duration connectTimeout;
         private final Duration responseTimeout;
         private final Proxy proxy;
         private final ProxyAuthentication proxyAuthentication;
-        private final int maxRedirects;
+        private final Integer maxRedirects;
+        private final SSLContext sslContext;
 
-        private DefaultRequestConfig(boolean redirectsEnabled, Duration requestTimeout, Duration connectTimeout, Duration responseTimeout, Proxy proxy, ProxyAuthentication proxyAuthentication, int maxRedirects) {
+        private DefaultRequestConfig(Boolean redirectsEnabled, Duration requestTimeout, Duration connectTimeout, Duration responseTimeout, Proxy proxy, ProxyAuthentication proxyAuthentication, Integer maxRedirects, SSLContext sslContext) {
             this.redirectsEnabled = redirectsEnabled;
             this.requestTimeout = requestTimeout;
             this.connectTimeout = connectTimeout;
@@ -94,10 +104,11 @@ class RequestConfigBuilder implements RequestConfig.Builder {
             this.proxy = proxy;
             this.proxyAuthentication = proxyAuthentication;
             this.maxRedirects = maxRedirects;
+            this.sslContext = sslContext;
         }
 
         @Override
-        public boolean isRedirectsEnabled() {
+        public Boolean isRedirectsEnabled() {
             return redirectsEnabled;
         }
 
@@ -127,8 +138,13 @@ class RequestConfigBuilder implements RequestConfig.Builder {
         }
 
         @Override
-        public int getMaxRedirects() {
+        public Integer getMaxRedirects() {
             return maxRedirects;
+        }
+
+        @Override
+        public SSLContext getSslContext() {
+            return sslContext;
         }
 
         @Override
@@ -138,13 +154,14 @@ class RequestConfigBuilder implements RequestConfig.Builder {
             }
             if (obj instanceof RequestConfig) {
                 final RequestConfig that = (RequestConfig) obj;
-                return this.isRedirectsEnabled() == that.isRedirectsEnabled()
+                return Objects.equals(this.isRedirectsEnabled(), that.isRedirectsEnabled())
                         && Objects.equals(this.getRequestTimeout(), that.getRequestTimeout())
                         && Objects.equals(this.getConnectTimeout(), that.getConnectTimeout())
                         && Objects.equals(this.getResponseTimeout(), that.getResponseTimeout())
                         && Objects.equals(this.getProxy(), that.getProxy())
                         && Objects.equals(this.proxyAuthentication, that.getProxyAuthentication())
-                        && this.getMaxRedirects() == that.getMaxRedirects();
+                        && Objects.equals(this.getMaxRedirects(), that.getMaxRedirects())
+                        && Objects.equals(this.sslContext, that.getSslContext());
             }
             return false;
         }

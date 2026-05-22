@@ -22,8 +22,11 @@ public final class Cookies {
         COOKIE_VALUE_HANDLER.put("domain", Cookie.Builder::domain);
         COOKIE_VALUE_HANDLER.put("path", Cookie.Builder::path);
         COOKIE_VALUE_HANDLER.put("max-age", (builder, value) -> {
-            if (value != null && !value.isEmpty()) {
-                builder.maxAge(Long.parseLong(value));
+            try {
+                if (value != null && !value.isEmpty()) {
+                    builder.maxAge(Long.parseLong(value));
+                }
+            } catch (NumberFormatException ignored) {
             }
         });
         COOKIE_VALUE_HANDLER.put("secure", (builder, value) -> builder.isSecure(true));

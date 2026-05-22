@@ -1,6 +1,8 @@
 package cn.maarlakes.common.http.async;
 
 import cn.maarlakes.common.http.*;
+import cn.maarlakes.common.http.Request;
+import cn.maarlakes.common.http.Response;
 import cn.maarlakes.common.http.body.multipart.FilePart;
 import cn.maarlakes.common.http.body.multipart.MultipartBody;
 import cn.maarlakes.common.http.body.multipart.MultipartPart;
@@ -8,29 +10,41 @@ import cn.maarlakes.common.spi.SpiServiceLoader;
 import cn.maarlakes.common.utils.CollectionUtils;
 import io.netty.handler.codec.http.cookie.CookieHeaderNames;
 import jakarta.annotation.Nonnull;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.Dsl;
-import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.*;
+import org.asynchttpclient.netty.ssl.JsseSslEngineFactory;
 import org.asynchttpclient.proxy.ProxyServer;
 import org.asynchttpclient.request.body.multipart.InputStreamPart;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
-import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author linjpxc
  */
 public class NettyAsyncHttpClient implements HttpClient {
 
+    private static final Logger log = LoggerFactory.getLogger(NettyAsyncHttpClient.class);
+
     private final AsyncHttpClient client;
 
     public NettyAsyncHttpClient() {
         this(Dsl.asyncHttpClient());
+    }
+
+    public NettyAsyncHttpClient(@Nonnull SSLContext sslContext) {
+        this(new DefaultAsyncHttpClient(
+                new DefaultAsyncHttpClientConfig.Builder()
+                        .setSslEngineFactory(new JsseSslEngineFactory(sslContext))
+                        .build()
+        ));
     }
 
     public NettyAsyncHttpClient(@Nonnull AsyncHttpClient client) {
@@ -39,7 +53,10 @@ public class NettyAsyncHttpClient implements HttpClient {
 
     @Nonnull
     @Override
-    public CompletionStage<? extends Response> execute(@Nonnull Request request, RequestConfig config) {
+    public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
+        if (config != null && config.getSslContext() != null) {
+            log.warn("Netty AsyncHttpClient 不支持按请求进行 SSLContext，请在客户端构建时配置 SSL");
+        }
         return this.client.executeRequest(toBuilder(request, config))
                 .toCompletableFuture()
                 .exceptionally(error -> {
@@ -97,11 +114,16 @@ public class NettyAsyncHttpClient implements HttpClient {
                 }
             } else {
                 builder.setBody(request.getBody().getContentStream());
-                builder.setHeader(request.getBody().getContentTypeHeader().getName(), request.getBody().getContentTypeHeader().getValues());
+                final Header contentTypeHeader = request.getBody().getContentTypeHeader();
+                if (contentTypeHeader != null) {
+                    builder.setHeader(contentTypeHeader.getName(), contentTypeHeader.getValues());
+                }
             }
         }
         if (config != null) {
-            builder.setFollowRedirect(config.isRedirectsEnabled());
+            if (config.isRedirectsEnabled() != null) {
+                builder.setFollowRedirect(config.isRedirectsEnabled());
+            }
             if (config.getResponseTimeout() != null) {
                 builder.setReadTimeout((int) config.getResponseTimeout().toMillis());
             }
