@@ -2,15 +2,18 @@ package cn.maarlakes.common.http;
 
 import cn.maarlakes.common.http.proxy.ProxyAuthentication;
 import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 
+import javax.net.ssl.SSLContext;
 import java.net.Proxy;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 /**
  * @author linjpxc
  */
-class RequestConfigBuilder implements RequestConfig.Builder {
+class HttpClientConfigBuilder implements HttpClientConfig.Builder {
 
     private Boolean redirectsEnabled;
     private Duration requestTimeout;
@@ -19,64 +22,84 @@ class RequestConfigBuilder implements RequestConfig.Builder {
     private Proxy proxy;
     private ProxyAuthentication proxyAuthentication;
     private Integer maxRedirects;
+    private SSLContext sslContext;
+    private Executor executor;
 
     @Nonnull
     @Override
-    public RequestConfig.Builder redirectsEnabled(Boolean enabled) {
+    public HttpClientConfig.Builder redirectsEnabled(Boolean enabled) {
         this.redirectsEnabled = enabled;
         return this;
     }
 
     @Nonnull
     @Override
-    public RequestConfig.Builder requestTimeout(Duration timeout) {
+    public HttpClientConfig.Builder requestTimeout(Duration timeout) {
         this.requestTimeout = timeout;
         return this;
     }
 
     @Nonnull
     @Override
-    public RequestConfig.Builder connectTimeout(Duration timeout) {
+    public HttpClientConfig.Builder connectTimeout(Duration timeout) {
         this.connectTimeout = timeout;
         return this;
     }
 
     @Nonnull
     @Override
-    public RequestConfig.Builder responseTimeout(Duration timeout) {
+    public HttpClientConfig.Builder responseTimeout(Duration timeout) {
         this.responseTimeout = timeout;
         return this;
     }
 
     @Nonnull
     @Override
-    public RequestConfig.Builder proxy(Proxy proxy) {
+    public HttpClientConfig.Builder proxy(Proxy proxy) {
         this.proxy = proxy;
         return this;
     }
 
     @Nonnull
     @Override
-    public RequestConfig.Builder proxyAuthentication(ProxyAuthentication proxyAuthentication) {
+    public HttpClientConfig.Builder proxyAuthentication(ProxyAuthentication proxyAuthentication) {
         this.proxyAuthentication = proxyAuthentication;
         return this;
     }
 
     @Nonnull
     @Override
-    public RequestConfig.Builder maxRedirects(Integer maxRedirects) {
+    public HttpClientConfig.Builder maxRedirects(Integer maxRedirects) {
         this.maxRedirects = maxRedirects;
         return this;
     }
 
     @Nonnull
     @Override
-    public RequestConfig build() {
-        return new DefaultRequestConfig(this.redirectsEnabled, this.requestTimeout, this.connectTimeout, this.responseTimeout, this.proxy, this.proxyAuthentication, this.maxRedirects);
+    public HttpClientConfig.Builder sslContext(@Nullable SSLContext sslContext) {
+        this.sslContext = sslContext;
+        return this;
     }
 
-    private static class DefaultRequestConfig implements RequestConfig {
-        private static final long serialVersionUID = 8469433946916457328L;
+    @Nonnull
+    @Override
+    public HttpClientConfig.Builder executor(@Nullable Executor executor) {
+        this.executor = executor;
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public HttpClientConfig build() {
+        return new DefaultHttpClientConfig(
+                this.redirectsEnabled, this.requestTimeout, this.connectTimeout,
+                this.responseTimeout, this.proxy, this.proxyAuthentication,
+                this.maxRedirects, this.sslContext, this.executor
+        );
+    }
+
+    private static class DefaultHttpClientConfig implements HttpClientConfig {
+        private static final long serialVersionUID = 6724752825582438174L;
 
         private final Boolean redirectsEnabled;
         private final Duration requestTimeout;
@@ -85,8 +108,14 @@ class RequestConfigBuilder implements RequestConfig.Builder {
         private final Proxy proxy;
         private final ProxyAuthentication proxyAuthentication;
         private final Integer maxRedirects;
+        private final SSLContext sslContext;
+        private final Executor executor;
 
-        private DefaultRequestConfig(Boolean redirectsEnabled, Duration requestTimeout, Duration connectTimeout, Duration responseTimeout, Proxy proxy, ProxyAuthentication proxyAuthentication, Integer maxRedirects) {
+        private DefaultHttpClientConfig(Boolean redirectsEnabled, Duration requestTimeout,
+                                        Duration connectTimeout, Duration responseTimeout,
+                                        Proxy proxy, ProxyAuthentication proxyAuthentication,
+                                        Integer maxRedirects, SSLContext sslContext,
+                                        Executor executor) {
             this.redirectsEnabled = redirectsEnabled;
             this.requestTimeout = requestTimeout;
             this.connectTimeout = connectTimeout;
@@ -94,6 +123,8 @@ class RequestConfigBuilder implements RequestConfig.Builder {
             this.proxy = proxy;
             this.proxyAuthentication = proxyAuthentication;
             this.maxRedirects = maxRedirects;
+            this.sslContext = sslContext;
+            this.executor = executor;
         }
 
         @Override
@@ -123,7 +154,7 @@ class RequestConfigBuilder implements RequestConfig.Builder {
 
         @Override
         public ProxyAuthentication getProxyAuthentication() {
-            return this.proxyAuthentication;
+            return proxyAuthentication;
         }
 
         @Override
@@ -132,26 +163,45 @@ class RequestConfigBuilder implements RequestConfig.Builder {
         }
 
         @Override
+        public SSLContext getSslContext() {
+            return sslContext;
+        }
+
+        @Override
+        public Executor getExecutor() {
+            return executor;
+        }
+
+        @Override
         public boolean equals(Object obj) {
             if (obj == this) {
                 return true;
             }
-            if (obj instanceof RequestConfig) {
-                final RequestConfig that = (RequestConfig) obj;
+            if (obj instanceof HttpClientConfig) {
+                final HttpClientConfig that = (HttpClientConfig) obj;
                 return Objects.equals(this.isRedirectsEnabled(), that.isRedirectsEnabled())
                         && Objects.equals(this.getRequestTimeout(), that.getRequestTimeout())
                         && Objects.equals(this.getConnectTimeout(), that.getConnectTimeout())
                         && Objects.equals(this.getResponseTimeout(), that.getResponseTimeout())
                         && Objects.equals(this.getProxy(), that.getProxy())
                         && Objects.equals(this.proxyAuthentication, that.getProxyAuthentication())
-                        && Objects.equals(this.getMaxRedirects(), that.getMaxRedirects());
+                        && Objects.equals(this.getMaxRedirects(), that.getMaxRedirects())
+                        && Objects.equals(this.sslContext, that.getSslContext())
+                        && Objects.equals(this.executor, that.getExecutor());
             }
             return false;
         }
 
         @Override
         public String toString() {
-            return "redirectsEnabled=" + isRedirectsEnabled() + ", requestTimeout=" + requestTimeout + ", connectTimeout=" + connectTimeout + ", responseTimeout=" + responseTimeout + ", proxy=" + proxy + ", maxRedirects=" + maxRedirects;
+            return "redirectsEnabled=" + isRedirectsEnabled()
+                    + ", requestTimeout=" + requestTimeout
+                    + ", connectTimeout=" + connectTimeout
+                    + ", responseTimeout=" + responseTimeout
+                    + ", proxy=" + proxy
+                    + ", maxRedirects=" + maxRedirects
+                    + ", sslContext=" + (sslContext != null)
+                    + ", executor=" + executor;
         }
     }
 }

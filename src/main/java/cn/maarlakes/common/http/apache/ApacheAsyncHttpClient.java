@@ -54,17 +54,27 @@ public class ApacheAsyncHttpClient implements HttpClient {
     private static final Logger log = LoggerFactory.getLogger(ApacheAsyncHttpClient.class);
 
     private final HttpAsyncClient client;
+    private final RequestConfig defaultConfig;
 
     public ApacheAsyncHttpClient() {
-        this(HttpAsyncClientBuilder.create().build());
+        this(HttpAsyncClientBuilder.create().build(), null);
     }
 
     public ApacheAsyncHttpClient(@Nonnull SSLContext sslContext) {
-        this(buildClient(sslContext));
+        this(buildClient(sslContext), null);
+    }
+
+    public ApacheAsyncHttpClient(@Nonnull SSLContext sslContext, RequestConfig defaultConfig) {
+        this(buildClient(sslContext), defaultConfig);
     }
 
     public ApacheAsyncHttpClient(@Nonnull HttpAsyncClient httpClient) {
+        this(httpClient, null);
+    }
+
+    public ApacheAsyncHttpClient(@Nonnull HttpAsyncClient httpClient, RequestConfig defaultConfig) {
         this.client = httpClient;
+        this.defaultConfig = defaultConfig;
         if (httpClient instanceof CloseableHttpAsyncClient) {
             final CloseableHttpAsyncClient closeableHttpAsyncClient = (CloseableHttpAsyncClient) httpClient;
             if (closeableHttpAsyncClient.getStatus() != IOReactorStatus.ACTIVE) {
@@ -73,22 +83,11 @@ public class ApacheAsyncHttpClient implements HttpClient {
         }
     }
 
-    private static CloseableHttpAsyncClient buildClient(SSLContext sslContext) {
-        final CloseableHttpAsyncClient client = HttpAsyncClients.custom()
-                .setConnectionManager(
-                        PoolingAsyncClientConnectionManagerBuilder.create()
-                                .setTlsStrategy(new BasicClientTlsStrategy(sslContext))
-                                .build()
-                )
-                .build();
-        client.start();
-        return client;
-    }
-
     @Nonnull
     @Override
     @SuppressWarnings("DuplicatedCode")
     public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
+        final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
         try {
             final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
                     .setUri(Apaches.toUri(request));
@@ -107,14 +106,14 @@ public class ApacheAsyncHttpClient implements HttpClient {
 
             final HttpClientContext context = HttpClientContext.create();
             context.setCookieStore(new BasicCookieStore());
-            final org.apache.hc.client5.http.config.RequestConfig requestConfig = to(config);
+            final org.apache.hc.client5.http.config.RequestConfig requestConfig = to(effectiveConfig);
             if (requestConfig != null) {
                 context.setRequestConfig(requestConfig);
             }
-            if (config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
+            if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
                 for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
-                    if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
-                        authenticator.authenticate(context, config.getProxy(), config.getProxyAuthentication());
+                    if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
+                        authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
                         break;
                     }
                 }
@@ -122,10 +121,6 @@ public class ApacheAsyncHttpClient implements HttpClient {
 
             if (CollectionUtils.isNotEmpty(request.getCookies())) {
                 builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
-            }
-
-            if (config != null && config.getSslContext() != null) {
-                log.warn("Apache HttpClient 5不支持按请求进行SSLContext，请在客户端构建时配置SSL。");
             }
 
             final ResponseFuture future = new ResponseFuture();
@@ -269,6 +264,18 @@ public class ApacheAsyncHttpClient implements HttpClient {
         public void informationResponse(HttpResponse response, HttpContext context) throws HttpException, IOException {
 
         }
+    }
+
+    static CloseableHttpAsyncClient buildClient(SSLContext sslContext) {
+        final CloseableHttpAsyncClient client = HttpAsyncClients.custom()
+                .setConnectionManager(
+                        PoolingAsyncClientConnectionManagerBuilder.create()
+                                .setTlsStrategy(new BasicClientTlsStrategy(sslContext))
+                                .build()
+                )
+                .build();
+        client.start();
+        return client;
     }
 
     private static class ResponseFuture extends CompletableFuture<Response> {

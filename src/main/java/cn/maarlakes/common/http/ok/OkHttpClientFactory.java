@@ -1,56 +1,79 @@
 package cn.maarlakes.common.http.ok;
 
-import cn.maarlakes.common.Order;
-import cn.maarlakes.common.function.Function0;
 import cn.maarlakes.common.http.HttpClient;
+import cn.maarlakes.common.http.HttpClientConfig;
 import cn.maarlakes.common.http.HttpClientFactory;
-import cn.maarlakes.common.spi.SpiService;
-import cn.maarlakes.common.utils.ClassUtils;
 import jakarta.annotation.Nonnull;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.*;
 
 /**
  * @author linjpxc
  */
-@Order(20)
-@SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class OkHttpClientFactory implements HttpClientFactory {
 
-    private static final boolean OK = ClassUtils.hasClass("okhttp3.OkHttpClient");
+    private static final Logger log = LoggerFactory.getLogger(OkHttpClientFactory.class);
 
     @Nonnull
     @Override
-    public HttpClient createClient() {
-        return new OkAsyncHttpClient();
-    }
-
-    @Nonnull
-    @Override
-    public HttpClient createClient(@Nonnull Executor executor) {
+    public HttpClient createClient(@Nonnull HttpClientConfig config) {
         final OkHttpClient.Builder builder = new OkHttpClient.Builder();
-        if (executor instanceof ExecutorService) {
-            builder.dispatcher(new Dispatcher((ExecutorService) executor));
+        final Executor executor = config.getExecutor();
+        if (executor != null) {
+            if (executor instanceof ExecutorService) {
+                builder.dispatcher(new Dispatcher((ExecutorService) executor));
+            } else {
+                log.warn("OkHttp requires ExecutorService, wrapping Executor with an adapter. Consider providing an ExecutorService instead.");
+                builder.dispatcher(new Dispatcher(new ExecutorServiceAdapter(executor)));
+            }
         }
-        return new OkAsyncHttpClient(builder.build());
+        return new OkAsyncHttpClient(builder.build(), config.getSslContext(), config);
     }
 
-    @Nonnull
-    @Override
-    public HttpClient createClient(@Nonnull Function0<Executor> executorFactory) {
-        final OkHttpClient.Builder builder = new OkHttpClient.Builder();
-        final Executor executor = executorFactory.get();
-        if (executor instanceof ExecutorService) {
-            builder.dispatcher(new Dispatcher((ExecutorService) executor));
-        }
-        return new OkAsyncHttpClient(builder.build());
-    }
+    private static class ExecutorServiceAdapter extends AbstractExecutorService {
 
-    @Override
-    public boolean isAvailable() {
-        return OK;
+        private final Executor executor;
+        private volatile boolean shutdown;
+
+        private ExecutorServiceAdapter(Executor executor) {
+            this.executor = executor;
+        }
+
+        @Override
+        public void shutdown() {
+            this.shutdown = true;
+        }
+
+        @Override
+        public java.util.List<Runnable> shutdownNow() {
+            this.shutdown = true;
+            return java.util.Collections.emptyList();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return this.shutdown;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return this.shutdown;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            if (!this.shutdown) {
+                this.executor.execute(command);
+            }
+        }
     }
 }

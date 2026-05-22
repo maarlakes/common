@@ -36,23 +36,37 @@ public class JdkHttpClient implements HttpClient {
     private final Executor executor;
     private final boolean ownsExecutor;
     private final SSLContext sslContext;
+    private final RequestConfig defaultConfig;
 
     public JdkHttpClient() {
-        this(new ForkJoinPool(), true, null);
+        this(new ForkJoinPool(), true, null, null);
+    }
+
+    public JdkHttpClient(RequestConfig defaultConfig) {
+        this(new ForkJoinPool(), true, null, defaultConfig);
     }
 
     public JdkHttpClient(@Nonnull Executor executor) {
-        this(executor, false, null);
+        this(executor, false, null, null);
+    }
+
+    public JdkHttpClient(@Nonnull Executor executor, RequestConfig defaultConfig) {
+        this(executor, false, null, defaultConfig);
     }
 
     public JdkHttpClient(@Nonnull Executor executor, SSLContext sslContext) {
-        this(executor, false, sslContext);
+        this(executor, false, sslContext, null);
     }
 
-    private JdkHttpClient(@Nonnull Executor executor, boolean ownsExecutor, SSLContext sslContext) {
+    public JdkHttpClient(@Nonnull Executor executor, SSLContext sslContext, RequestConfig defaultConfig) {
+        this(executor, false, sslContext, defaultConfig);
+    }
+
+    JdkHttpClient(@Nonnull Executor executor, boolean ownsExecutor, SSLContext sslContext, RequestConfig defaultConfig) {
         this.executor = executor;
         this.ownsExecutor = ownsExecutor;
         this.sslContext = sslContext;
+        this.defaultConfig = defaultConfig;
     }
 
     @Nonnull
@@ -64,8 +78,9 @@ public class JdkHttpClient implements HttpClient {
                 if (future.isCancelled()) {
                     return;
                 }
+                final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
                 final URL url = toUrl(request);
-                HttpURLConnection connection = createConnection(url, request, config);
+                HttpURLConnection connection = createConnection(url, request, effectiveConfig);
                 future.setConnection(connection);
                 Response response = doExecute(connection, request, url);
                 if (!future.isCancelled() && response.getStatusCode() == 407 && config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
@@ -145,6 +160,7 @@ public class JdkHttpClient implements HttpClient {
             }
             connection.connect();
             final int responseCode = connection.getResponseCode();
+
             if (responseCode >= 200 && responseCode < 300) {
                 try (InputStream in = connection.getInputStream()) {
                     return new DefaultResponse(url, responseCode, connection.getResponseMessage(), StreamUtils.readAllBytes(in), request.getUri(), toHeaders(connection.getHeaderFields()));
@@ -195,10 +211,8 @@ public class JdkHttpClient implements HttpClient {
             connection.setRequestProperty(HttpHeaderNames.COOKIE, request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
         }
         if (connection instanceof HttpsURLConnection) {
-            final SSLContext requestSsl = config != null ? config.getSslContext() : null;
-            final SSLContext effectiveSsl = requestSsl != null ? requestSsl : this.sslContext;
-            if (effectiveSsl != null) {
-                ((HttpsURLConnection) connection).setSSLSocketFactory(effectiveSsl.getSocketFactory());
+            if (this.sslContext != null) {
+                ((HttpsURLConnection) connection).setSSLSocketFactory(this.sslContext.getSocketFactory());
             }
         }
         return connection;

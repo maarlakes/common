@@ -27,23 +27,38 @@ public class OkAsyncHttpClient implements HttpClient {
 
     private final OkHttpClient client;
     private final SSLContext sslContext;
+    private final RequestConfig defaultConfig;
 
     public OkAsyncHttpClient() {
-        this(new OkHttpClient.Builder().build(), null);
+        this(new OkHttpClient.Builder().build(), null, null);
+    }
+
+    public OkAsyncHttpClient(RequestConfig defaultConfig) {
+        this(new OkHttpClient.Builder().build(), null, defaultConfig);
     }
 
     public OkAsyncHttpClient(@Nonnull OkHttpClient client) {
-        this(client, null);
+        this(client, null, null);
+    }
+
+    public OkAsyncHttpClient(@Nonnull OkHttpClient client, RequestConfig defaultConfig) {
+        this(client, null, defaultConfig);
     }
 
     public OkAsyncHttpClient(@Nonnull OkHttpClient client, SSLContext sslContext) {
+        this(client, sslContext, null);
+    }
+
+    public OkAsyncHttpClient(@Nonnull OkHttpClient client, SSLContext sslContext, RequestConfig defaultConfig) {
         this.client = client;
         this.sslContext = sslContext;
+        this.defaultConfig = defaultConfig;
     }
 
     @Nonnull
     @Override
     public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
+        final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
         try {
             final HttpUrl.Builder builder = Objects.requireNonNull(HttpUrl.get(request.getUri())).newBuilder();
             if (CollectionUtils.isNotEmpty(request.getQueryParams())) {
@@ -60,7 +75,7 @@ public class OkAsyncHttpClient implements HttpClient {
                 }
             }
             final List<cn.maarlakes.common.http.Cookie> responseCookies = new ArrayList<>();
-            final OkHttpClient client = this.getClient(request, responseCookies, config);
+            final OkHttpClient client = this.getClient(request, responseCookies, effectiveConfig);
             final Call call = client.newCall(requestBuilder.build());
             final ResponseFuture future = new ResponseFuture(call);
 
@@ -168,10 +183,8 @@ public class OkAsyncHttpClient implements HttpClient {
                 }
             }
         }
-        final SSLContext requestSsl = config != null ? config.getSslContext() : null;
-        final SSLContext effectiveSsl = requestSsl != null ? requestSsl : this.sslContext;
-        if (effectiveSsl != null) {
-            builder.sslSocketFactory(effectiveSsl.getSocketFactory());
+        if (this.sslContext != null) {
+            builder.sslSocketFactory(this.sslContext.getSocketFactory());
         }
         return builder.build();
     }

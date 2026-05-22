@@ -9,12 +9,12 @@ import java.util.concurrent.CompletableFuture;
 /**
  * @author linjpxc
  */
-public class InterceptableHttpClient implements HttpClient {
+public class FilterableHttpClient implements HttpClient {
 
     private final HttpClient delegate;
     private final List<HttpFilter> interceptors;
 
-    public InterceptableHttpClient(@Nonnull HttpClient delegate, @Nonnull List<HttpFilter> interceptors) {
+    public FilterableHttpClient(@Nonnull HttpClient delegate, @Nonnull List<HttpFilter> interceptors) {
         this.delegate = delegate;
         this.interceptors = interceptors;
     }

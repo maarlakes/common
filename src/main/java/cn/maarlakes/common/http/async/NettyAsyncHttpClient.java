@@ -34,9 +34,14 @@ public class NettyAsyncHttpClient implements HttpClient {
     private static final Logger log = LoggerFactory.getLogger(NettyAsyncHttpClient.class);
 
     private final AsyncHttpClient client;
+    private final RequestConfig defaultConfig;
 
     public NettyAsyncHttpClient() {
-        this(Dsl.asyncHttpClient());
+        this(Dsl.asyncHttpClient(), null);
+    }
+
+    public NettyAsyncHttpClient(RequestConfig defaultConfig) {
+        this(Dsl.asyncHttpClient(), defaultConfig);
     }
 
     public NettyAsyncHttpClient(@Nonnull SSLContext sslContext) {
@@ -44,20 +49,31 @@ public class NettyAsyncHttpClient implements HttpClient {
                 new DefaultAsyncHttpClientConfig.Builder()
                         .setSslEngineFactory(new JsseSslEngineFactory(sslContext))
                         .build()
-        ));
+        ), null);
+    }
+
+    public NettyAsyncHttpClient(@Nonnull SSLContext sslContext, RequestConfig defaultConfig) {
+        this(new DefaultAsyncHttpClient(
+                new DefaultAsyncHttpClientConfig.Builder()
+                        .setSslEngineFactory(new JsseSslEngineFactory(sslContext))
+                        .build()
+        ), defaultConfig);
     }
 
     public NettyAsyncHttpClient(@Nonnull AsyncHttpClient client) {
+        this(client, null);
+    }
+
+    public NettyAsyncHttpClient(@Nonnull AsyncHttpClient client, RequestConfig defaultConfig) {
         this.client = client;
+        this.defaultConfig = defaultConfig;
     }
 
     @Nonnull
     @Override
     public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
-        if (config != null && config.getSslContext() != null) {
-            log.warn("Netty AsyncHttpClient 不支持按请求进行 SSLContext，请在客户端构建时配置 SSL");
-        }
-        return this.client.executeRequest(toBuilder(request, config))
+        final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
+        return this.client.executeRequest(toBuilder(request, effectiveConfig))
                 .toCompletableFuture()
                 .exceptionally(error -> {
                     throw new HttpClientException(error.getMessage(), error);

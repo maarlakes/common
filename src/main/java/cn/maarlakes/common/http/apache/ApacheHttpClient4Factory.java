@@ -1,38 +1,34 @@
 package cn.maarlakes.common.http.apache;
 
-import cn.maarlakes.common.Order;
-import cn.maarlakes.common.function.Function0;
 import cn.maarlakes.common.http.HttpClient;
+import cn.maarlakes.common.http.HttpClientConfig;
 import cn.maarlakes.common.http.HttpClientFactory;
-import cn.maarlakes.common.spi.SpiService;
-import cn.maarlakes.common.utils.ClassUtils;
 import jakarta.annotation.Nonnull;
 
+import javax.net.ssl.SSLContext;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  * @author linjpxc
  */
-@Order(100)
-@SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class ApacheHttpClient4Factory implements HttpClientFactory {
 
-    private static final boolean OK = ClassUtils.hasClass("org.apache.http.impl.client.CloseableHttpClient");
-
     @Nonnull
     @Override
-    public HttpClient createClient() {
-        return new ApacheHttpClient4();
+    public HttpClient createClient(@Nonnull HttpClientConfig config) {
+        final Executor executor = config.getExecutor();
+        final SSLContext ssl = config.getSslContext();
+        final org.apache.http.client.HttpClient client = ssl != null
+                ? buildClient(ssl)
+                : org.apache.http.impl.client.HttpClientBuilder.create().build();
+        final boolean ownsExecutor = executor == null;
+        return new ApacheHttpClient4(client, ownsExecutor ? new ForkJoinPool() : executor, ownsExecutor, config);
     }
 
-    @Nonnull
-    @Override
-    public HttpClient createClient(@Nonnull Function0<Executor> executorFactory) {
-        return new ApacheHttpClient4(executorFactory.get());
-    }
-
-    @Override
-    public boolean isAvailable() {
-        return OK;
+    private static org.apache.http.client.HttpClient buildClient(SSLContext sslContext) {
+        final org.apache.http.impl.client.HttpClientBuilder builder = org.apache.http.impl.client.HttpClientBuilder.create();
+        builder.setSSLSocketFactory(new org.apache.http.conn.ssl.SSLConnectionSocketFactory(sslContext));
+        return builder.build();
     }
 }

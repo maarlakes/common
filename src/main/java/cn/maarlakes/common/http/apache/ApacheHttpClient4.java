@@ -32,8 +32,6 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
@@ -54,37 +52,48 @@ import java.util.stream.Collectors;
  * @author linjpxc
  */
 public class ApacheHttpClient4 implements HttpClient {
-
-    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClient4.class);
-
     private final org.apache.http.client.HttpClient client;
     private final Executor executor;
     private final boolean ownsExecutor;
+    private final RequestConfig defaultConfig;
 
     public ApacheHttpClient4() {
-        this(HttpClientBuilder.create().build(), new ForkJoinPool(), true);
+        this(HttpClientBuilder.create().build(), new ForkJoinPool(), true, null);
     }
 
     public ApacheHttpClient4(@Nonnull Executor executor) {
-        this(HttpClientBuilder.create().build(), executor, false);
+        this(HttpClientBuilder.create().build(), executor, false, null);
+    }
+
+    public ApacheHttpClient4(@Nonnull Executor executor, RequestConfig defaultConfig) {
+        this(HttpClientBuilder.create().build(), executor, false, defaultConfig);
     }
 
     public ApacheHttpClient4(@Nonnull Executor executor, SSLContext sslContext) {
-        this(buildClient(sslContext), executor, true);
+        this(buildClient(sslContext), executor, true, null);
     }
 
     public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client) {
-        this(client, new ForkJoinPool(), true);
+        this(client, new ForkJoinPool(), true, null);
+    }
+
+    public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, RequestConfig defaultConfig) {
+        this(client, new ForkJoinPool(), true, defaultConfig);
     }
 
     public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, @Nonnull Executor executor) {
-        this(client, executor, false);
+        this(client, executor, false, null);
     }
 
-    private ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, @Nonnull Executor executor, boolean ownsExecutor) {
+    public ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, @Nonnull Executor executor, RequestConfig defaultConfig) {
+        this(client, executor, false, defaultConfig);
+    }
+
+    ApacheHttpClient4(@Nonnull org.apache.http.client.HttpClient client, @Nonnull Executor executor, boolean ownsExecutor, RequestConfig defaultConfig) {
         this.client = client;
         this.executor = executor;
         this.ownsExecutor = ownsExecutor;
+        this.defaultConfig = defaultConfig;
     }
 
     private static org.apache.http.client.HttpClient buildClient(SSLContext sslContext) {
@@ -101,11 +110,9 @@ public class ApacheHttpClient4 implements HttpClient {
     public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
         final ResponseFuture future = new ResponseFuture();
         this.executor.execute(() -> {
+            final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
             InputStream contentStream = null;
             try {
-                if (config != null && config.getSslContext() != null) {
-                    log.warn("Apache HttpClient 4不支持按请求进行SSLContext，请在客户端构建时配置SSL。");
-                }
                 final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
                         .setUri(toUri(request));
                 settingHeader(builder, request);
@@ -126,14 +133,14 @@ public class ApacheHttpClient4 implements HttpClient {
                 }
                 final HttpClientContext context = HttpClientContext.create();
                 context.setCookieStore(new BasicCookieStore());
-                final org.apache.http.client.config.RequestConfig requestConfig = to(config);
+                final org.apache.http.client.config.RequestConfig requestConfig = to(effectiveConfig);
                 if (requestConfig != null) {
                     context.setRequestConfig(requestConfig);
                 }
-                if (config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
+                if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
                     for (Apache4ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(Apache4ProxyAuthenticator.class, this.getClass().getClassLoader())) {
-                        if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
-                            authenticator.authenticate(context, config.getProxy(), config.getProxyAuthentication());
+                        if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
+                            authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
                             break;
                         }
                     }
