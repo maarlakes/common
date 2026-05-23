@@ -19,6 +19,9 @@ public interface HttpClient extends Closeable {
     CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config);
 
     @Nonnull
+    <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler);
+
+    @Nonnull
     static HttpClientBuilder builder() {
         return new DefaultHttpClientBuilder();
     }

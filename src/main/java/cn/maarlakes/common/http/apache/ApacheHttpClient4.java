@@ -175,6 +175,90 @@ public class ApacheHttpClient4 implements HttpClient {
         return future;
     }
 
+    @Nonnull
+    @Override
+    @SuppressWarnings("DuplicatedCode")
+    public <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull cn.maarlakes.common.http.ResponseHandler<T> handler) {
+        final HandlerFuture<T> future = new HandlerFuture<>();
+        this.executor.execute(() -> {
+            final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
+            InputStream contentStream = null;
+            try {
+                final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
+                        .setUri(toUri(request));
+                settingHeader(builder, request);
+                if (request.getCharset() != null) {
+                    builder.setCharset(request.getCharset());
+                }
+                settingFormParams(builder, request);
+                if (request.getBody() != null) {
+                    if (request.getBody() instanceof MultipartBody) {
+                        settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
+                    } else {
+                        contentStream = request.getBody().getContentStream();
+                        if (contentStream != null) {
+                            final ContentType ct = request.getBody().getContentType();
+                            builder.setEntity(new InputStreamEntity(contentStream, ct != null ? toApacheContentType(ct) : null));
+                        }
+                    }
+                }
+                final HttpClientContext context = HttpClientContext.create();
+                context.setCookieStore(new BasicCookieStore());
+                final org.apache.http.client.config.RequestConfig requestConfig = to(effectiveConfig);
+                if (requestConfig != null) {
+                    context.setRequestConfig(requestConfig);
+                }
+                if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
+                    for (Apache4ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(Apache4ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                        if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
+                            authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
+                            break;
+                        }
+                    }
+                }
+
+                if (CollectionUtils.isNotEmpty(request.getCookies())) {
+                    builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
+                }
+                final HttpUriRequest uriRequest = builder.build();
+                future.request = uriRequest;
+                if (future.isCancelled()) {
+                    return;
+                }
+
+                this.client.execute(determineTarget(uriRequest), uriRequest, response -> {
+                    try {
+                        final cn.maarlakes.common.http.HttpResponse httpResponse = createResponseInfo(request.getUri(), response, context);
+                        final BodySink body = new ApacheBodySink(response.getEntity());
+                        final CompletableFuture<T> result = handler.handle(httpResponse, body);
+                        result.whenComplete((val, err) -> {
+                            if (err != null) {
+                                future.completeExceptionally(err);
+                            } else {
+                                future.complete(val);
+                            }
+                        });
+                    } catch (Exception e) {
+                        future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+                    }
+                    return null;
+                }, context);
+            } catch (Exception e) {
+                if (!future.isCancelled()) {
+                    future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+                }
+            } finally {
+                if (contentStream != null) {
+                    try {
+                        contentStream.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+            }
+        });
+        return future;
+    }
+
     @Override
     public void close() throws IOException {
         if (this.client instanceof AutoCloseable) {
@@ -323,6 +407,105 @@ public class ApacheHttpClient4 implements HttpClient {
                 }
             }
             return super.cancel(mayInterruptIfRunning);
+        }
+    }
+
+    private static final class HandlerFuture<T> extends CompletableFuture<T> {
+        private HttpUriRequest request;
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (mayInterruptIfRunning) {
+                final HttpUriRequest request = this.request;
+                if (request != null) {
+                    request.abort();
+                }
+            }
+            return super.cancel(mayInterruptIfRunning);
+        }
+    }
+
+    private static cn.maarlakes.common.http.HttpResponse createResponseInfo(URI uri, HttpResponse response, HttpContext context) {
+        final Object attribute = context.getAttribute("http.connection");
+        final SocketAddress remoteAddress;
+        if (attribute instanceof HttpInetConnection) {
+            final HttpInetConnection connection = (HttpInetConnection) attribute;
+            remoteAddress = new InetSocketAddress(connection.getRemoteAddress(), connection.getRemotePort());
+        } else {
+            remoteAddress = null;
+        }
+        final Map<String, List<String>> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (org.apache.http.Header header : response.getAllHeaders()) {
+            map.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
+        }
+        final Map<String, Header> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        map.forEach((k, v) -> headers.put(k, new DefaultHeader(k, v)));
+
+        final CookieStore cookieStore = (CookieStore) context.getAttribute(HttpClientContext.COOKIE_STORE);
+        final List<Cookie> cookies = new ArrayList<>();
+        if (cookieStore != null && CollectionUtils.isNotEmpty(cookieStore.getCookies())) {
+            for (org.apache.http.cookie.Cookie cookie : cookieStore.getCookies()) {
+                final cn.maarlakes.common.http.Cookie.Builder builder = cn.maarlakes.common.http.Cookie.builder(cookie.getName())
+                        .value(cookie.getValue())
+                        .domain(cookie.getDomain())
+                        .path(cookie.getPath())
+                        .isSecure(cookie.isSecure());
+                if (cookie.getExpiryDate() != null) {
+                    builder.expires(DateTimeFactories.fromEpochMilli(cookie.getExpiryDate().getTime()));
+                }
+                cookies.add(builder.build());
+            }
+        }
+
+        return new DefaultHttpResponse(
+                response.getStatusLine().getStatusCode(),
+                response.getStatusLine().getReasonPhrase(),
+                new DefaultHttpHeaders(headers),
+                uri,
+                cookies,
+                remoteAddress
+        );
+    }
+
+    private static class ApacheBodySink implements BodySink {
+        private final HttpEntity entity;
+
+        private ApacheBodySink(HttpEntity entity) {
+            this.entity = entity;
+        }
+
+        @Override
+        public <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            if (this.entity == null) {
+                try {
+                    future.complete(consumer.onComplete());
+                } catch (Exception e) {
+                    try {
+                        consumer.onError(e);
+                    } catch (Exception onErrorEx) {
+                        e.addSuppressed(onErrorEx);
+                    }
+                    future.completeExceptionally(e);
+                }
+                return future;
+            }
+            try (InputStream in = this.entity.getContent()) {
+                final byte[] buffer = new byte[8192];
+                int n;
+                while ((n = in.read(buffer)) != -1) {
+                    consumer.onChunk(buffer, 0, n);
+                }
+                future.complete(consumer.onComplete());
+            } catch (Exception e) {
+                try {
+                    consumer.onError(e);
+                } catch (Exception onErrorEx) {
+                    e.addSuppressed(onErrorEx);
+                }
+                future.completeExceptionally(e);
+            }
+            return future;
         }
     }
 

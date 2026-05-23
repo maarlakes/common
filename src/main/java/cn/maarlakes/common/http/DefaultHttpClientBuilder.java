@@ -1,5 +1,6 @@
 package cn.maarlakes.common.http;
 
+import cn.maarlakes.common.http.jdk.JdkHttpClient;
 import jakarta.annotation.Nonnull;
 
 import java.util.ArrayList;
@@ -53,21 +54,17 @@ class DefaultHttpClientBuilder implements HttpClientBuilder {
     @Override
     public HttpClient build() {
         if (this.factory == null) {
-            throw new IllegalStateException("factory is not set");
+            HttpClient client = new JdkHttpClient(this.requestConfig);
+            if (!this.filters.isEmpty()) {
+                client = new FilterableHttpClient(client, this.filters);
+            }
+            return client;
         }
         final HttpClientConfig config;
         if (this.requestConfig instanceof HttpClientConfig) {
             config = (HttpClientConfig) this.requestConfig;
         } else if (this.requestConfig != null) {
-            config = HttpClientConfig.builder()
-                    .redirectsEnabled(this.requestConfig.isRedirectsEnabled())
-                    .requestTimeout(this.requestConfig.getRequestTimeout())
-                    .connectTimeout(this.requestConfig.getConnectTimeout())
-                    .responseTimeout(this.requestConfig.getResponseTimeout())
-                    .proxy(this.requestConfig.getProxy())
-                    .proxyAuthentication(this.requestConfig.getProxyAuthentication())
-                    .maxRedirects(this.requestConfig.getMaxRedirects())
-                    .build();
+            config = HttpClientConfig.builder().from(this.requestConfig).build();
         } else {
             config = HttpClientConfig.builder().build();
         }

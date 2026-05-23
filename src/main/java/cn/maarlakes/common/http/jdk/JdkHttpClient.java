@@ -114,6 +114,60 @@ public class JdkHttpClient implements HttpClient {
         return future;
     }
 
+    @Nonnull
+    @Override
+    public <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler) {
+        final HandlerFuture<T> future = new HandlerFuture<>();
+        this.executor.execute(() -> {
+            try {
+                if (future.isCancelled()) {
+                    return;
+                }
+                final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
+                final URL url = toUrl(request);
+                HttpURLConnection connection = createConnection(url, request, effectiveConfig);
+                future.setConnection(connection);
+                HttpResponse httpResponse = doExecuteHandler(connection, request, url);
+                if (!future.isCancelled() && httpResponse.getStatusCode() == 407 && config != null && config.getProxy() != null && config.getProxyAuthentication() != null) {
+                    connection = createConnection(url, request, config);
+                    future.setConnection(connection);
+                    if (future.isCancelled()) {
+                        return;
+                    }
+                    boolean isProxy = false;
+                    Response tempResponse = new TempResponse(httpResponse);
+                    for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                        if (authenticator.supported(config.getProxy(), config.getProxyAuthentication())) {
+                            isProxy = authenticator.authenticate(connection, tempResponse, config.getProxy(), config.getProxyAuthentication());
+                            break;
+                        }
+                    }
+                    if (!isProxy) {
+                        return;
+                    }
+                    httpResponse = doExecuteHandler(connection, request, url);
+                }
+
+                if (!future.isCancelled()) {
+                    final BodySink body = new JdkBodySink(connection);
+                    final CompletableFuture<T> result = handler.handle(httpResponse, body);
+                    result.whenComplete((val, err) -> {
+                        if (err != null) {
+                            future.completeExceptionally(err);
+                        } else {
+                            future.complete(val);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                if (!future.isCancelled()) {
+                    future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+                }
+            }
+        });
+        return future;
+    }
+
     @Override
     public void close() throws IOException {
         if (this.ownsExecutor && this.executor instanceof ExecutorService) {
@@ -144,20 +198,7 @@ public class JdkHttpClient implements HttpClient {
 
     private Response doExecute(HttpURLConnection connection, Request request, URL url) throws Exception {
         try {
-            RequestBody<?> body = request.getBody();
-            if (body == null && CollectionUtils.isNotEmpty(request.getFormParams())) {
-                body = new UrlEncodedFormEntityBody(request.getFormParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8"));
-            }
-            if (body != null) {
-                connection.setDoOutput(true);
-                final Header contentTypeHeader = body.getContentTypeHeader();
-                if (contentTypeHeader != null) {
-                    connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE, contentTypeHeader.get());
-                }
-                try (OutputStream out = connection.getOutputStream()) {
-                    body.writeTo(out);
-                }
-            }
+            sendRequestBody(connection, request);
             connection.connect();
             final int responseCode = connection.getResponseCode();
 
@@ -174,6 +215,63 @@ public class JdkHttpClient implements HttpClient {
                 connection.disconnect();
             }
         }
+    }
+
+    private HttpResponse doExecuteHandler(HttpURLConnection connection, Request request, URL url) throws Exception {
+        sendRequestBody(connection, request);
+        connection.connect();
+        final int responseCode = connection.getResponseCode();
+        final HttpHeaders headers = toHeaders(connection.getHeaderFields());
+        final int port = url.getPort() == -1 ? url.getDefaultPort() : url.getPort();
+        final SocketAddress remoteAddress = new InetSocketAddress(InetAddress.getByName(url.getHost()), port);
+        return new DefaultHttpResponse(
+                responseCode,
+                connection.getResponseMessage(),
+                headers,
+                request.getUri(),
+                parseCookies(headers),
+                remoteAddress
+        );
+    }
+
+    private void sendRequestBody(HttpURLConnection connection, Request request) throws Exception {
+        RequestBody<?> body = request.getBody();
+        if (body == null && CollectionUtils.isNotEmpty(request.getFormParams())) {
+            body = new UrlEncodedFormEntityBody(request.getFormParams(), Optional.ofNullable(request.getCharset()).map(Charset::name).orElse("utf-8"));
+        }
+        if (body != null) {
+            connection.setDoOutput(true);
+            final Header contentTypeHeader = body.getContentTypeHeader();
+            if (contentTypeHeader != null) {
+                connection.setRequestProperty(HttpHeaderNames.CONTENT_TYPE, contentTypeHeader.get());
+            }
+            try (OutputStream out = connection.getOutputStream()) {
+                body.writeTo(out);
+            }
+        }
+    }
+
+    private static List<Cookie> parseCookies(HttpHeaders headers) {
+        List<Cookie> cookies = new ArrayList<>();
+        Header header = headers.getHeader("Set-Cookie");
+        if (header != null && CollectionUtils.isNotEmpty(header.getValues())) {
+            for (String value : header.getValues()) {
+                final Cookie cookie = Cookies.parse(value);
+                if (cookie != null) {
+                    cookies.add(cookie);
+                }
+            }
+        }
+        header = headers.getHeader("set-cookie2");
+        if (header != null && CollectionUtils.isNotEmpty(header.getValues())) {
+            for (String value : header.getValues()) {
+                final Cookie cookie = Cookies.parse(value);
+                if (cookie != null) {
+                    cookies.add(cookie);
+                }
+            }
+        }
+        return cookies;
     }
 
     private HttpURLConnection createConnection(@Nonnull URL url, @Nonnull Request request, RequestConfig config) throws Exception {
@@ -247,6 +345,113 @@ public class JdkHttpClient implements HttpClient {
         }
     }
 
+    private static class HandlerFuture<T> extends CompletableFuture<T> {
+        private volatile HttpURLConnection connection;
+
+        void setConnection(@Nonnull HttpURLConnection connection) {
+            if (this.isCancelled()) {
+                connection.disconnect();
+            }
+            this.connection = connection;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            final HttpURLConnection connection = this.connection;
+            if (connection != null) {
+                connection.disconnect();
+            }
+            return super.cancel(mayInterruptIfRunning);
+        }
+    }
+
+    private static class JdkBodySink implements BodySink {
+        private final HttpURLConnection connection;
+
+        private JdkBodySink(HttpURLConnection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            try {
+                final int statusCode = this.connection.getResponseCode();
+                final InputStream stream = (statusCode >= 200 && statusCode < 300)
+                        ? this.connection.getInputStream()
+                        : this.connection.getErrorStream();
+                if (stream != null) {
+                    try {
+                        final byte[] buffer = new byte[8192];
+                        int n;
+                        while ((n = stream.read(buffer)) != -1) {
+                            consumer.onChunk(buffer, 0, n);
+                        }
+                    } finally {
+                        stream.close();
+                    }
+                }
+                future.complete(consumer.onComplete());
+            } catch (Exception e) {
+                try {
+                    consumer.onError(e);
+                } catch (Exception onErrorEx) {
+                    e.addSuppressed(onErrorEx);
+                }
+                future.completeExceptionally(e);
+            } finally {
+                this.connection.disconnect();
+            }
+            return future;
+        }
+    }
+
+    private static class TempResponse implements Response {
+        private final HttpResponse info;
+
+        private TempResponse(HttpResponse response) {
+            this.info = response;
+        }
+
+        @Override
+        public int getStatusCode() {
+            return this.info.getStatusCode();
+        }
+
+        @Override
+        public String getStatusText() {
+            return this.info.getStatusText();
+        }
+
+        @Nonnull
+        @Override
+        public ResponseBody getBody() {
+            return new ByteArrayResponseBody(new byte[0], null, null);
+        }
+
+        @Override
+        public URI getUri() {
+            return this.info.getUri();
+        }
+
+        @Nonnull
+        @Override
+        public HttpHeaders getHeaders() {
+            return this.info.getHeaders();
+        }
+
+        @Nonnull
+        @Override
+        public List<? extends Cookie> getCookies() {
+            return this.info.getCookies();
+        }
+
+        @Override
+        public SocketAddress getRemoteAddress() {
+            return this.info.getRemoteAddress();
+        }
+    }
+
     private static class DefaultResponse implements Response {
         private final Lazy<SocketAddress> socketAddress;
         private final int statusCode;
@@ -267,8 +472,8 @@ public class JdkHttpClient implements HttpClient {
                     headers.getHeader(HttpHeaderNames.CONTENT_ENCODING)
             );
             this.socketAddress = Lazy.of(() -> {
-                final int port = url.getPort();
-                return new InetSocketAddress(url.getHost(), port == -1 ? url.getDefaultPort() : port);
+                final int port = url.getPort() == -1 ? url.getDefaultPort() : url.getPort();
+                return new InetSocketAddress(InetAddress.getByName(url.getHost()), port);
             });
         }
 

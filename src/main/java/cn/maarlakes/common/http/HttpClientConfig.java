@@ -25,5 +25,16 @@ public interface HttpClientConfig extends RequestConfig {
 
         @Nonnull
         Builder executor(@Nullable Executor executor);
+
+        @Nonnull
+        default Builder from(@Nonnull RequestConfig config) {
+            return this.redirectsEnabled(config.isRedirectsEnabled())
+                    .requestTimeout(config.getRequestTimeout())
+                    .connectTimeout(config.getConnectTimeout())
+                    .responseTimeout(config.getResponseTimeout())
+                    .proxy(config.getProxy())
+                    .proxyAuthentication(config.getProxyAuthentication())
+                    .maxRedirects(config.getMaxRedirects());
+        }
     }
 }

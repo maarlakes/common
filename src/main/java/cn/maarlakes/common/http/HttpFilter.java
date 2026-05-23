@@ -11,10 +11,12 @@ import java.util.concurrent.CompletableFuture;
 public interface HttpFilter {
 
     @Nonnull
-    CompletableFuture<Response> doFilter(@Nonnull Request request, RequestConfig config, @Nonnull Chain chain);
+    <T> CompletableFuture<T> doFilter(@Nonnull Request request, RequestConfig config,
+                                       @Nonnull ResponseHandler<T> handler, @Nonnull Chain chain);
 
     interface Chain {
         @Nonnull
-        CompletableFuture<Response> doFilter(@Nonnull Request request, RequestConfig config);
+        <T> CompletableFuture<T> doFilter(@Nonnull Request request, RequestConfig config,
+                                           @Nonnull ResponseHandler<T> handler);
     }
 }

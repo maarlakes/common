@@ -25,6 +25,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author linjpxc
@@ -79,6 +81,94 @@ public class NettyAsyncHttpClient implements HttpClient {
                     throw new HttpClientException(error.getMessage(), error);
                 })
                 .thenApply(DefaultResponse::new);
+    }
+
+    @Nonnull
+    @Override
+    public <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler) {
+        final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
+        final AtomicReference<ListenableFuture<Void>> listenableFutureRef = new AtomicReference<>();
+        final CompletableFuture<T> result = new CompletableFuture<T>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                if (mayInterruptIfRunning) {
+                    final ListenableFuture<Void> lf = listenableFutureRef.get();
+                    if (lf != null) {
+                        lf.cancel(true);
+                    }
+                }
+                return super.cancel(mayInterruptIfRunning);
+            }
+        };
+        final PushBodySink sink = new PushBodySink();
+        final ListenableFuture<Void> listenableFuture = this.client.executeRequest(
+                toBuilder(request, effectiveConfig),
+                new AsyncCompletionHandler<Void>() {
+                    private HttpResponseStatus status;
+                    private io.netty.handler.codec.http.HttpHeaders headers;
+                    private final AtomicBoolean handlerInvoked = new AtomicBoolean();
+
+                    @Override
+                    public State onStatusReceived(HttpResponseStatus status) throws Exception {
+                        this.status = status;
+                        return State.CONTINUE;
+                    }
+
+                    @Override
+                    public State onHeadersReceived(io.netty.handler.codec.http.HttpHeaders headers) throws Exception {
+                        this.headers = headers;
+                        super.onHeadersReceived(headers);
+                        invokeHandler();
+                        return State.CONTINUE;
+                    }
+
+                    @Override
+                    public State onBodyPartReceived(HttpResponseBodyPart part) throws Exception {
+                        sink.pushChunk(part.getBodyPartBytes(), 0, part.length());
+                        return State.CONTINUE;
+                    }
+
+                    @Override
+                    public Void onCompleted(org.asynchttpclient.Response response) throws Exception {
+                        if (!handlerInvoked.get()) {
+                            invokeHandler();
+                        }
+                        sink.complete();
+                        return null;
+                    }
+
+                    @Override
+                    public void onThrowable(Throwable t) {
+                        if (handlerInvoked.get()) {
+                            sink.fail(t);
+                        } else {
+                            result.completeExceptionally(new HttpClientException(t.getMessage(), t));
+                        }
+                    }
+
+                    private void invokeHandler() {
+                        if (handlerInvoked.compareAndSet(false, true)) {
+                            final HttpResponse httpResponse = createResponseInfo(status, headers, request.getUri());
+                            final CompletableFuture<T> handlerFuture = handler.handle(httpResponse, sink);
+                            handlerFuture.whenComplete((val, err) -> {
+                                if (err != null) {
+                                    result.completeExceptionally(err);
+                                } else {
+                                    result.complete(val);
+                                }
+                            });
+                        }
+                    }
+                }
+        );
+        listenableFutureRef.set(listenableFuture);
+        listenableFuture.toCompletableFuture().exceptionally(ex -> {
+            if (!result.isDone()) {
+                result.completeExceptionally(ex);
+            }
+            return null;
+        });
+        return result;
     }
 
     private static RequestBuilder toBuilder(@Nonnull Request request, RequestConfig config) {
@@ -176,6 +266,131 @@ public class NettyAsyncHttpClient implements HttpClient {
             defaultCookie.setSameSite(CookieHeaderNames.SameSite.valueOf(cookie.sameSite().name()));
         }
         return defaultCookie;
+    }
+
+    private static HttpResponse createResponseInfo(HttpResponseStatus status, io.netty.handler.codec.http.HttpHeaders headers, URI uri) {
+        final HttpHeaders httpHeaders = new AsyncHttpHeaders(headers);
+        return new DefaultHttpResponse(
+                status.getStatusCode(),
+                status.getStatusText(),
+                httpHeaders,
+                uri,
+                parseCookiesFromHeaders(httpHeaders),
+                status.getRemoteAddress()
+        );
+    }
+
+    private static List<Cookie> parseCookiesFromHeaders(HttpHeaders headers) {
+        final List<Cookie> cookies = new ArrayList<>();
+        final Header setCookie = headers.getHeader("Set-Cookie");
+        if (setCookie != null && CollectionUtils.isNotEmpty(setCookie.getValues())) {
+            for (String value : setCookie.getValues()) {
+                final Cookie cookie = Cookies.parse(value);
+                if (cookie != null) {
+                    cookies.add(cookie);
+                }
+            }
+        }
+        final Header setCookie2 = headers.getHeader("set-cookie2");
+        if (setCookie2 != null && CollectionUtils.isNotEmpty(setCookie2.getValues())) {
+            for (String value : setCookie2.getValues()) {
+                final Cookie cookie = Cookies.parse(value);
+                if (cookie != null) {
+                    cookies.add(cookie);
+                }
+            }
+        }
+        return cookies;
+    }
+
+    private static class PushBodySink implements BodySink {
+        private final List<byte[]> buffer = new ArrayList<>();
+        private BodyConsumer<?> consumer;
+        private boolean completed;
+        private Throwable error;
+        private final CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public synchronized <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
+            this.consumer = consumer;
+            for (byte[] chunk : buffer) {
+                consumer.onChunk(chunk, 0, chunk.length);
+            }
+            buffer.clear();
+
+            if (error != null) {
+                try {
+                    consumer.onError(error);
+                } catch (Exception onErrorEx) {
+                    error.addSuppressed(onErrorEx);
+                }
+                final CompletableFuture<T> future = new CompletableFuture<>();
+                future.completeExceptionally(error);
+                return future;
+            }
+            if (completed) {
+                final CompletableFuture<T> future = new CompletableFuture<>();
+                try {
+                    future.complete(consumer.onComplete());
+                } catch (Exception e) {
+                    try {
+                        consumer.onError(e);
+                    } catch (Exception onErrorEx) {
+                        e.addSuppressed(onErrorEx);
+                    }
+                    future.completeExceptionally(e);
+                }
+                return future;
+            }
+
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            signal.whenComplete((v, ex) -> {
+                if (ex != null) {
+                    try {
+                        consumer.onError(ex);
+                    } catch (Exception onErrorEx) {
+                        ex.addSuppressed(onErrorEx);
+                    }
+                    future.completeExceptionally(ex);
+                } else {
+                    try {
+                        future.complete(consumer.onComplete());
+                    } catch (Exception e) {
+                        try {
+                            consumer.onError(e);
+                        } catch (Exception onErrorEx) {
+                            e.addSuppressed(onErrorEx);
+                        }
+                        future.completeExceptionally(e);
+                    }
+                }
+            });
+            return future;
+        }
+
+        synchronized void pushChunk(byte[] data, int offset, int length) {
+            final byte[] copy = Arrays.copyOfRange(data, offset, offset + length);
+            if (consumer != null) {
+                ((BodyConsumer<Object>) consumer).onChunk(copy, 0, copy.length);
+            } else {
+                buffer.add(copy);
+            }
+        }
+
+        void complete() {
+            synchronized (this) {
+                completed = true;
+            }
+            signal.complete(null);
+        }
+
+        void fail(Throwable t) {
+            synchronized (this) {
+                error = t;
+            }
+            signal.completeExceptionally(t);
+        }
     }
 
     private static RequestBuilder toBuilder(@Nonnull HttpMethod method, @Nonnull String url) {

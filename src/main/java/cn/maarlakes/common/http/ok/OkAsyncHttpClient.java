@@ -14,6 +14,8 @@ import okhttp3.RequestBody;
 
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
@@ -95,6 +97,62 @@ public class OkAsyncHttpClient implements HttpClient {
             return CompletableFuture.supplyAsync(() -> {
                 throw new HttpClientException(e.getMessage(), e);
             });
+        }
+    }
+
+    @Nonnull
+    @Override
+    public <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler) {
+        final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
+        try {
+            final HttpUrl.Builder builder = Objects.requireNonNull(HttpUrl.get(request.getUri())).newBuilder();
+            if (CollectionUtils.isNotEmpty(request.getQueryParams())) {
+                for (NameValuePair param : request.getQueryParams()) {
+                    builder.addQueryParameter(param.getName(), param.getValue());
+                }
+            }
+            final okhttp3.Request.Builder requestBuilder = new okhttp3.Request.Builder().method(request.getMethod().name(), toRequestBody(request)).url(builder.build());
+            if (!request.getHeaders().isEmpty()) {
+                for (Header header : request.getHeaders()) {
+                    for (String value : header.getValues()) {
+                        requestBuilder.addHeader(header.getName(), value);
+                    }
+                }
+            }
+            final List<cn.maarlakes.common.http.Cookie> responseCookies = new ArrayList<>();
+            final OkHttpClient client = this.getClient(request, responseCookies, effectiveConfig);
+            final Call call = client.newCall(requestBuilder.build());
+            final HandlerFuture<T> future = new HandlerFuture<>(call);
+
+            call.enqueue(new Callback() {
+                @Override
+                public void onFailure(@Nonnull Call call, @Nonnull IOException e) {
+                    future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+                }
+
+                @Override
+                public void onResponse(@Nonnull Call call, @Nonnull okhttp3.Response response) throws IOException {
+                    try {
+                        final HttpResponse info = createResponseInfo(response, responseCookies);
+                        final BodySink body = new OkBodySink(response.body());
+                        final CompletableFuture<T> result = handler.handle(info, body);
+                        result.whenComplete((val, err) -> {
+                            if (err != null) {
+                                future.completeExceptionally(err);
+                            } else {
+                                future.complete(val);
+                            }
+                        });
+                    } catch (Exception e) {
+                        future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+                    }
+                }
+            });
+            return future;
+        } catch (Exception e) {
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+            return future;
         }
     }
 
@@ -247,6 +305,112 @@ public class OkAsyncHttpClient implements HttpClient {
         }
     }
 
+    private static class HandlerFuture<T> extends CompletableFuture<T> {
+        private final Call call;
+
+        private HandlerFuture(Call call) {
+            this.call = call;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (mayInterruptIfRunning) {
+                this.call.cancel();
+            }
+            return super.cancel(mayInterruptIfRunning);
+        }
+    }
+
+    private static HttpResponse createResponseInfo(@Nonnull okhttp3.Response response, List<cn.maarlakes.common.http.Cookie> cookies) throws Exception {
+        final HttpUrl url = response.request().url();
+        final int port = url.port();
+        final SocketAddress remoteAddress = new InetSocketAddress(InetAddress.getByName(url.host()), port);
+        final Set<String> names = response.headers().names();
+        final HttpHeaders headers = new HttpHeaders() {
+            @Override
+            public boolean isEmpty() {
+                return names.isEmpty();
+            }
+
+            @Override
+            public Header getHeader(@Nonnull String name) {
+                return new DefaultHeader(name, response.headers(name));
+            }
+
+            @Nonnull
+            @Override
+            public Iterator<Header> iterator() {
+                final Iterator<String> iterator = names.iterator();
+                return new Iterator<Header>() {
+                    @Override
+                    public boolean hasNext() {
+                        return iterator.hasNext();
+                    }
+
+                    @Override
+                    public Header next() {
+                        return getHeader(iterator.next());
+                    }
+                };
+            }
+
+            @Override
+            public String toString() {
+                return response.headers().toString();
+            }
+        };
+        return new DefaultHttpResponse(
+                response.code(),
+                response.message(),
+                headers,
+                url.uri(),
+                new ArrayList<>(cookies),
+                remoteAddress
+        );
+    }
+
+    private static class OkBodySink implements BodySink {
+        private final okhttp3.ResponseBody responseBody;
+
+        private OkBodySink(okhttp3.ResponseBody responseBody) {
+            this.responseBody = responseBody;
+        }
+
+        @Override
+        public <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            if (this.responseBody == null) {
+                try {
+                    future.complete(consumer.onComplete());
+                } catch (Exception e) {
+                    try {
+                        consumer.onError(e);
+                    } catch (Exception onErrorEx) {
+                        e.addSuppressed(onErrorEx);
+                    }
+                    future.completeExceptionally(e);
+                }
+                return future;
+            }
+            try (InputStream in = this.responseBody.byteStream()) {
+                final byte[] buffer = new byte[8192];
+                int n;
+                while ((n = in.read(buffer)) != -1) {
+                    consumer.onChunk(buffer, 0, n);
+                }
+                future.complete(consumer.onComplete());
+            } catch (Exception e) {
+                try {
+                    consumer.onError(e);
+                } catch (Exception onErrorEx) {
+                    e.addSuppressed(onErrorEx);
+                }
+                future.completeExceptionally(e);
+            }
+            return future;
+        }
+    }
+
     private static class DefaultResponse implements Response {
 
         private final okhttp3.Response response;
@@ -344,9 +508,13 @@ public class OkAsyncHttpClient implements HttpClient {
 
         @Override
         public SocketAddress getRemoteAddress() {
-            final HttpUrl url = this.response.request().url();
-            final int port = url.port();
-            return new InetSocketAddress(url.host(), port);
+            try {
+                final HttpUrl url = this.response.request().url();
+                final int port = url.port();
+                return new InetSocketAddress(InetAddress.getByName(url.host()), port);
+            } catch (Exception e) {
+                return null;
+            }
         }
 
     }

@@ -22,9 +22,12 @@ import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBu
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.EndpointDetails;
+import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.http.nio.CapacityChannel;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.ssl.BasicClientTlsStrategy;
 import org.apache.hc.core5.http.nio.support.AbstractAsyncResponseConsumer;
@@ -40,6 +43,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -146,6 +150,72 @@ public class ApacheAsyncHttpClient implements HttpClient {
             return CompletableFuture.supplyAsync(() -> {
                 throw new HttpClientException(e.getMessage(), e);
             });
+        }
+    }
+
+    @Nonnull
+    @Override
+    @SuppressWarnings("DuplicatedCode")
+    public <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler) {
+        final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
+        try {
+            final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
+                    .setUri(Apaches.toUri(request));
+            settingHeader(builder, request);
+            if (request.getCharset() != null) {
+                builder.setCharset(request.getCharset());
+            }
+            settingFormParams(builder, request);
+            if (request.getBody() != null) {
+                if (request.getBody() instanceof MultipartBody) {
+                    settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
+                } else {
+                    builder.setEntity(new ContentAsyncEntityProducer(request.getBody()));
+                }
+            }
+
+            final HttpClientContext context = HttpClientContext.create();
+            context.setCookieStore(new BasicCookieStore());
+            final org.apache.hc.client5.http.config.RequestConfig requestConfig = to(effectiveConfig);
+            if (requestConfig != null) {
+                context.setRequestConfig(requestConfig);
+            }
+            if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
+                for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                    if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
+                        authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
+                        break;
+                    }
+                }
+            }
+
+            if (CollectionUtils.isNotEmpty(request.getCookies())) {
+                builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
+            }
+
+            final HandlerFuture<T> future = new HandlerFuture<>();
+            future.future = this.client.execute(builder.build(), new StreamingResponseConsumer<>(request, handler), null, context, new FutureCallback<T>() {
+                @Override
+                public void completed(T response) {
+                    future.complete(response);
+                }
+
+                @Override
+                public void failed(Exception ex) {
+                    future.completeExceptionally(new HttpClientException(ex.getMessage(), ex));
+                }
+
+                @Override
+                public void cancelled() {
+                    future.cancel(false);
+                }
+            });
+
+            return future;
+        } catch (Exception e) {
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            future.completeExceptionally(new HttpClientException(e.getMessage(), e));
+            return future;
         }
     }
 
@@ -288,6 +358,216 @@ public class ApacheAsyncHttpClient implements HttpClient {
                 future.cancel(mayInterruptIfRunning);
             }
             return super.cancel(mayInterruptIfRunning);
+        }
+    }
+
+    private static class HandlerFuture<T> extends CompletableFuture<T> {
+        private volatile Future<?> future;
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            final Future<?> future = this.future;
+            if (future != null) {
+                future.cancel(mayInterruptIfRunning);
+            }
+            return super.cancel(mayInterruptIfRunning);
+        }
+    }
+
+    private static cn.maarlakes.common.http.HttpResponse createResponseInfo(HttpResponse response, HttpContext context, URI uri) {
+        final HttpHeaders headers = toHttpHeaders(response);
+        return new DefaultHttpResponse(
+                response.getCode(),
+                response.getReasonPhrase(),
+                headers,
+                uri,
+                parseCookiesFromHeaders(response),
+                getRemoteAddress(context)
+        );
+    }
+
+    private static HttpHeaders toHttpHeaders(HttpResponse response) {
+        final Map<String, List<String>> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (org.apache.hc.core5.http.Header header : response.getHeaders()) {
+            map.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
+        }
+        final Map<String, Header> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        map.forEach((k, v) -> headers.put(k, new DefaultHeader(k, v)));
+        return new DefaultHttpHeaders(headers);
+    }
+
+    private static List<cn.maarlakes.common.http.Cookie> parseCookiesFromHeaders(HttpResponse response) {
+        final List<cn.maarlakes.common.http.Cookie> cookies = new ArrayList<>();
+        for (org.apache.hc.core5.http.Header header : response.getHeaders()) {
+            if ("Set-Cookie".equalsIgnoreCase(header.getName()) || "set-cookie2".equalsIgnoreCase(header.getName())) {
+                final cn.maarlakes.common.http.Cookie cookie = Cookies.parse(header.getValue());
+                if (cookie != null) {
+                    cookies.add(cookie);
+                }
+            }
+        }
+        return cookies;
+    }
+
+    private static SocketAddress getRemoteAddress(HttpContext context) {
+        final EndpointDetails endpoint = (EndpointDetails) context.getAttribute(HttpClientContext.CONNECTION_ENDPOINT);
+        if (endpoint == null) {
+            return null;
+        }
+        return endpoint.getRemoteAddress();
+    }
+
+    private static class PushBodySink implements BodySink {
+        private final List<byte[]> buffer = new ArrayList<>();
+        private BodyConsumer<?> consumer;
+        private boolean completed;
+        private Throwable error;
+        private final CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public synchronized <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
+            this.consumer = consumer;
+            for (byte[] chunk : buffer) {
+                consumer.onChunk(chunk, 0, chunk.length);
+            }
+            buffer.clear();
+
+            if (error != null) {
+                try {
+                    consumer.onError(error);
+                } catch (Exception onErrorEx) {
+                    error.addSuppressed(onErrorEx);
+                }
+                final CompletableFuture<T> future = new CompletableFuture<>();
+                future.completeExceptionally(error);
+                return future;
+            }
+            if (completed) {
+                final CompletableFuture<T> future = new CompletableFuture<>();
+                try {
+                    future.complete(consumer.onComplete());
+                } catch (Exception e) {
+                    try {
+                        consumer.onError(e);
+                    } catch (Exception onErrorEx) {
+                        e.addSuppressed(onErrorEx);
+                    }
+                    future.completeExceptionally(e);
+                }
+                return future;
+            }
+
+            final CompletableFuture<T> future = new CompletableFuture<>();
+            signal.whenComplete((v, ex) -> {
+                if (ex != null) {
+                    try {
+                        consumer.onError(ex);
+                    } catch (Exception onErrorEx) {
+                        ex.addSuppressed(onErrorEx);
+                    }
+                    future.completeExceptionally(ex);
+                } else {
+                    try {
+                        future.complete(consumer.onComplete());
+                    } catch (Exception e) {
+                        try {
+                            consumer.onError(e);
+                        } catch (Exception onErrorEx) {
+                            e.addSuppressed(onErrorEx);
+                        }
+                        future.completeExceptionally(e);
+                    }
+                }
+            });
+            return future;
+        }
+
+        synchronized void pushChunk(byte[] data, int offset, int length) {
+            final byte[] copy = Arrays.copyOfRange(data, offset, offset + length);
+            if (consumer != null) {
+                consumer.onChunk(copy, 0, copy.length);
+            } else {
+                buffer.add(copy);
+            }
+        }
+
+        void complete() {
+            synchronized (this) {
+                completed = true;
+            }
+            signal.complete(null);
+        }
+
+        void fail(Throwable t) {
+            synchronized (this) {
+                error = t;
+            }
+            signal.completeExceptionally(t);
+        }
+    }
+
+    private static class StreamingResponseConsumer<T> implements AsyncResponseConsumer<T> {
+        private final Request request;
+        private final ResponseHandler<T> handler;
+        private final PushBodySink sink = new PushBodySink();
+        private volatile CompletableFuture<T> handlerFuture;
+
+        StreamingResponseConsumer(Request request, ResponseHandler<T> handler) {
+            this.request = request;
+            this.handler = handler;
+        }
+
+        @Override
+        public void consumeResponse(HttpResponse response, EntityDetails entityDetails,
+                                    HttpContext context, FutureCallback<T> resultCallback) {
+            try {
+                final cn.maarlakes.common.http.HttpResponse httpResponse = createResponseInfo(response, context, request.getUri());
+                handlerFuture = handler.handle(httpResponse, sink);
+                handlerFuture.whenComplete((val, err) -> {
+                    if (err != null) {
+                        if (err instanceof Exception) {
+                            resultCallback.failed((Exception) err);
+                        } else {
+                            resultCallback.failed(new HttpClientException(err.getMessage(), err));
+                        }
+                    } else {
+                        resultCallback.completed(val);
+                    }
+                });
+            } catch (Exception e) {
+                resultCallback.failed(e);
+            }
+        }
+
+        @Override
+        public void updateCapacity(CapacityChannel capacityChannel) throws IOException {
+            capacityChannel.update(Integer.MAX_VALUE);
+        }
+
+        @Override
+        public void consume(ByteBuffer data) throws IOException {
+            final byte[] bytes = new byte[data.remaining()];
+            data.get(bytes);
+            sink.pushChunk(bytes, 0, bytes.length);
+        }
+
+        @Override
+        public void streamEnd(List<? extends org.apache.hc.core5.http.Header> trailers) throws HttpException, IOException {
+            sink.complete();
+        }
+
+        @Override
+        public void failed(Exception cause) {
+            sink.fail(cause);
+        }
+
+        @Override
+        public void releaseResources() {
+        }
+
+        @Override
+        public void informationResponse(HttpResponse response, HttpContext context) throws HttpException, IOException {
         }
     }
 

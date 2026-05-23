@@ -100,6 +100,16 @@ class DefaultRequestBuilder implements Request.Builder {
     }
 
     private class DefaultRequest implements Request {
+        private final List<Cookie> cookies;
+        private final List<NameValuePair> queryParams;
+        private final List<NameValuePair> formParams;
+
+        DefaultRequest() {
+            this.cookies = new ArrayList<>(DefaultRequestBuilder.this.cookies);
+            this.queryParams = new ArrayList<>(DefaultRequestBuilder.this.queryParams);
+            this.formParams = new ArrayList<>(DefaultRequestBuilder.this.formParams);
+        }
+
         @Nonnull
         @Override
         public HttpMethod getMethod() {
@@ -123,7 +133,7 @@ class DefaultRequestBuilder implements Request.Builder {
         @Nonnull
         @Override
         public List<? extends Cookie> getCookies() {
-            return Collections.unmodifiableList(cookies);
+            return Collections.unmodifiableList(this.cookies);
         }
 
         @Override
@@ -133,12 +143,12 @@ class DefaultRequestBuilder implements Request.Builder {
 
         @Override
         public List<? extends NameValuePair> getQueryParams() {
-            return Collections.unmodifiableList(queryParams);
+            return Collections.unmodifiableList(this.queryParams);
         }
 
         @Override
         public List<? extends NameValuePair> getFormParams() {
-            return Collections.unmodifiableList(formParams);
+            return Collections.unmodifiableList(this.formParams);
         }
 
         @Override
