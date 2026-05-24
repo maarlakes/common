@@ -6,10 +6,13 @@ import jakarta.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
+import java.util.stream.Collectors;
 
 /**
  * HTTP 客户端静态工具类，提供无状态的快捷请求方法。
@@ -43,7 +46,9 @@ public final class HttpClients {
      */
     private static final Set<Class<?>> EXCLUDES = new HashSet<>();
 
-    /** 全局锁，保护 CLIENT/FACTORY/EXCLUDES 的并发访问。 */
+    /**
+     * 全局锁，保护 CLIENT/FACTORY/EXCLUDES 的并发访问。
+     */
     private static final Object LOCK = new Object();
 
     private HttpClients() {
@@ -57,12 +62,32 @@ public final class HttpClients {
         return doExecute(client -> client.execute(request));
     }
 
+    @Nonnull
+    public static CompletableFuture<Response> execute(@Nonnull Request request, @Nonnull HttpFilter... filters) {
+        return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request));
+    }
+
+    @Nonnull
+    public static CompletableFuture<Response> execute(@Nonnull Request request, @Nonnull List<HttpFilter> filters) {
+        return doExecute(client -> new FilterableHttpClient(client, filters).execute(request));
+    }
+
     /**
      * 使用指定配置发送请求。
      */
     @Nonnull
     public static CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
         return doExecute(client -> client.execute(request, config));
+    }
+
+    @Nonnull
+    public static CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config, @Nonnull HttpFilter... filters) {
+        return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request, config));
+    }
+
+    @Nonnull
+    public static CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config, @Nonnull List<HttpFilter> filters) {
+        return doExecute(client -> new FilterableHttpClient(client, filters).execute(request, config));
     }
 
     /**
@@ -73,12 +98,32 @@ public final class HttpClients {
         return doExecute(client -> client.execute(request, config, handler));
     }
 
+    @Nonnull
+    public static <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler, @Nonnull HttpFilter... filters) {
+        return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request, config, handler));
+    }
+
+    @Nonnull
+    public static <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler, @Nonnull List<HttpFilter> filters) {
+        return doExecute(client -> new FilterableHttpClient(client, filters).execute(request, config, handler));
+    }
+
     /**
      * 使用默认配置发送请求，并通过 handler 流式处理响应体。
      */
     @Nonnull
     public static <T> CompletableFuture<T> execute(@Nonnull Request request, @Nonnull ResponseHandler<T> handler) {
         return doExecute(client -> client.execute(request, null, handler));
+    }
+
+    @Nonnull
+    public static <T> CompletableFuture<T> execute(@Nonnull Request request, @Nonnull ResponseHandler<T> handler, @Nonnull HttpFilter... filters) {
+        return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request, null, handler));
+    }
+
+    @Nonnull
+    public static <T> CompletableFuture<T> execute(@Nonnull Request request, @Nonnull ResponseHandler<T> handler, @Nonnull List<HttpFilter> filters) {
+        return doExecute(client -> new FilterableHttpClient(client, filters).execute(request, null, handler));
     }
 
     /**
