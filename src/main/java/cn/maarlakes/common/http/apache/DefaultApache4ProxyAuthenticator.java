@@ -15,12 +15,16 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 
 /**
- * Basic scheme proxy authenticator for Apache HttpClient backend.
+ * Apache HttpClient 4 后端的代理认证实现，支持 Basic 和 Digest 两种认证方案。
+ *
+ * <p>通过在 {@link BasicCredentialsProvider} 中设置 {@link UsernamePasswordCredentials}，
+ * 让 Apache HttpClient 4 自动处理代理认证流程。逻辑与 Apache 5 版本
+ * ({@link DefaultProxyAuthenticator}) 一致，但使用 Apache 4 的 API。</p>
  *
  * @author linjpxc
  */
 @SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
-public class BasicApache4ProxyAuthenticator implements Apache4ProxyAuthenticator {
+public class DefaultApache4ProxyAuthenticator implements Apache4ProxyAuthenticator {
 
     @Override
     public boolean supported(@Nonnull Proxy proxy, @Nonnull ProxyAuthentication authentication) {

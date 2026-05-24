@@ -7,25 +7,40 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
+ * HTTP Cookie 模型，遵循 RFC 6265 规范。
+ *
+ * <p>包含 Cookie 的所有属性：名称、值、域、路径、过期时间、Secure、HttpOnly、SameSite。
+ * 通过 {@link #builder(String)} 创建构建器，支持链式设置各属性。
+ *
+ * <p>实现 {@link Comparable}，按名称排序。实现 {@link java.io.Serializable} 以支持序列化。
+ *
  * @author linjpxc
  */
 public interface Cookie extends Comparable<Cookie>, Serializable {
 
+    /** Cookie 名称。 */
     @Nonnull
     String name();
 
+    /** Cookie 值。 */
     String value();
 
+    /** Cookie 的域属性。 */
     String domain();
 
+    /** Cookie 的路径属性。 */
     String path();
 
+    /** Cookie 的最大存活时间（秒），0 表示会话 Cookie。 */
     long maxAge();
 
+    /** 是否仅通过 HTTPS 传输。 */
     boolean isSecure();
 
+    /** 是否限制 JavaScript 访问。 */
     boolean isHttpOnly();
 
+    /** SameSite 属性（Strict、Lax、None）。 */
     SameSite sameSite();
 
     Integer version();

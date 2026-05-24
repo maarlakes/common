@@ -10,18 +10,37 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /**
+ * HTTP 响应体，提供解码后的内容流。
+ *
+ * <p>{@link #getContent()} 返回经过编码解码器（gzip/deflate/brotli）处理后的流，
+ * {@link #getOriginalContent()} 返回未经解码的原始流。
+ *
+ * <p>提供便捷方法将响应体转为字符串（{@link #asText()}）、字节数组（{@link #asBytes()}），
+ * 或写入输出流（{@link #writeTo}）。这些方法使用后会关闭底层流。
+ *
  * @author linjpxc
  */
 public interface ResponseBody {
 
+    /**
+     * 获取解码后的响应体输入流。
+     *
+     * <p>如果响应头包含 Content-Encoding（gzip/deflate/brotli），
+     * 返回的流会自动经过相应的解码器处理。每次调用返回新的流。
+     */
     @Nonnull
     InputStream getContent();
 
+    /**
+     * 获取未经解码的原始响应体输入流。每次调用返回新的流。
+     */
     @Nonnull
     InputStream getOriginalContent();
 
+    /** 响应体的 Content-Type，可为 null。 */
     ContentType getContentType();
 
+    /** Content-Encoding 头部值，可为 null。 */
     Header getContentEncoding();
 
     @Nonnull

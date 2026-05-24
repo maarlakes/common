@@ -10,6 +10,15 @@ import okhttp3.Authenticator;
 
 import java.net.Proxy;
 
+/**
+ * OkHttp 后端的 Digest 代理认证实现。
+ *
+ * <p>返回一个 OkHttp {@link Authenticator}，在收到 407 响应时读取
+ * Proxy-Authenticate 头，调用 {@link DigestAuthentication#toAuthorization}
+ * 计算 Digest 认证响应值，并添加 Proxy-Authorization 头后重试请求。</p>
+ *
+ * @author linjpxc
+ */
 @SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class DigestProxyAuthenticator implements ProxyAuthenticator {
 

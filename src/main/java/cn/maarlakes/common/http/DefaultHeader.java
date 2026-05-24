@@ -6,6 +6,11 @@ import reactor.util.annotation.Nullable;
 import java.util.*;
 
 /**
+ * {@link Header} 的默认实现，使用不可变列表持有头值。
+ *
+ * <p>头名称比较不区分大小写，值列表在构造时即被冻结为不可变。
+ * 重写了 equals/hashCode 以支持按名称（忽略大小写）和值列表进行相等性比较。</p>
+ *
  * @author linjpxc
  */
 public class DefaultHeader implements Header {

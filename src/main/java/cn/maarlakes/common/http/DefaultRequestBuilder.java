@@ -11,10 +11,17 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
+ * {@link Request.Builder} 的默认实现，构建不可变的 {@link Request} 实例。
+ *
+ * <p>头部使用 {@link TreeMap} + {@link String#CASE_INSENSITIVE_ORDER} 存储，
+ * 确保头部名称不区分大小写且有序。查询参数和表单参数各自独立列表，
+ * 构建时分别拼接到 URL 和请求体中。
+ *
  * @author linjpxc
  */
 class DefaultRequestBuilder implements Request.Builder {
 
+    /** 头部存储，key 为小写化的头部名称以支持不区分大小写的查询。 */
     private final Map<String, List<String>> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private final List<Cookie> cookies = new ArrayList<>();
     private final List<NameValuePair> queryParams = new ArrayList<>();

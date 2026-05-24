@@ -8,6 +8,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /**
+ * JSON 类型的 multipart Part，Content-Type 为 {@code application/json}。
+ *
+ * <p>继承 {@link DefaultTextPart}，自动设置 JSON Content-Type。
+ * 支持两种构造方式：直接传入 JSON 字符串，或传入任意对象通过 fastjson2 序列化。</p>
+ *
  * @author linjpxc
  */
 public class JsonPart extends DefaultTextPart {

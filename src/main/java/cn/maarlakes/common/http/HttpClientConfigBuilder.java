@@ -11,6 +11,11 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
+ * {@link HttpClientConfig.Builder} 的默认实现，构建包含 SSL 和执行器配置的客户端配置。
+ *
+ * <p>扩展 {@link RequestConfigBuilder} 的基础配置项，增加 SSL 上下文和异步执行器设置。
+ * 通过 {@link HttpClientConfig.Builder#from} 可从已有 {@link RequestConfig} 复制通用配置。
+ *
  * @author linjpxc
  */
 class HttpClientConfigBuilder implements HttpClientConfig.Builder {

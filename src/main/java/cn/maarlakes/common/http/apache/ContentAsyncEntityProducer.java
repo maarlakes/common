@@ -14,6 +14,13 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
+ * 基于 {@link ContentBody} 的 Apache HttpClient 5 异步实体生产者。
+ *
+ * <p>将统一的 {@link ContentBody} 适配为 Apache 5 的 {@link AsyncEntityProducer} 接口。
+ * 优先使用 {@link ContentChannel} 的通道传输模式以提高性能；
+ * 若不支持通道模式则回退到回调式写入。内容长度返回 -1（未知），
+ * 由 Apache 框架自动处理分块传输。</p>
+ *
  * @author linjpxc
  */
 class ContentAsyncEntityProducer implements AsyncEntityProducer {

@@ -12,6 +12,15 @@ import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URISyntaxException;
 
+/**
+ * JDK HttpURLConnection 后端的 Digest 代理认证实现。
+ *
+ * <p>在收到代理服务器返回的 407 响应后，读取 Proxy-Authenticate 头中的 Digest 挑战参数，
+ * 调用 {@link DigestAuthentication#toAuthorization} 计算认证响应值，
+ * 并将其设置到请求的 Proxy-Authorization 头中。</p>
+ *
+ * @author linjpxc
+ */
 @SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class DigestProxyAuthenticator implements ProxyAuthenticator {
 

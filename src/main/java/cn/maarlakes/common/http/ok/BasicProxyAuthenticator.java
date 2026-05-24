@@ -10,6 +10,14 @@ import org.jetbrains.annotations.Nullable;
 
 import java.net.Proxy;
 
+/**
+ * OkHttp 后端的 Basic 代理认证实现。
+ *
+ * <p>返回一个 OkHttp {@link Authenticator}，利用 OkHttp 内置的 {@link okhttp3.Credentials#basic}
+ * 方法生成 Basic 认证头，在收到 407 响应时自动重试。</p>
+ *
+ * @author linjpxc
+ */
 @SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class BasicProxyAuthenticator implements ProxyAuthenticator {
 

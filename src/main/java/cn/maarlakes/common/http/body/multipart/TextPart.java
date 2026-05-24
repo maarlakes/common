@@ -1,6 +1,11 @@
 package cn.maarlakes.common.http.body.multipart;
 
 /**
+ * 文本类型的 multipart Part 标记接口。
+ *
+ * <p>泛型参数为 {@link CharSequence}，主要实现类为 {@link DefaultTextPart} 和 {@link JsonPart}。
+ * 用于在类型层面区分文本 Part 与其他类型的 Part。</p>
+ *
  * @author linjpxc
  */
 public interface TextPart extends MultipartPart<CharSequence> {

@@ -1,6 +1,12 @@
 package cn.maarlakes.common.http;
 
 /**
+ * 标准 HTTP 头字段名称常量集合，统一使用小写形式。
+ *
+ * <p>涵盖 RFC 7230-7235 定义的标准请求/响应头、CORS 相关头、
+ * WebSocket 升级头以及常见的非标准扩展头（如 X-Frame-Options）。
+ * 所有常量均为小写，与 HTTP 头名称的规范形式保持一致。</p>
+ *
  * @author linjpxc
  */
 public final class HttpHeaderNames {

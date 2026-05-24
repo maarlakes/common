@@ -13,6 +13,12 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 
 /**
+ * 基于 {@link ContentBody} 的 OkHttp 请求体适配器。
+ *
+ * <p>将统一的 {@link ContentBody} 适配为 OkHttp 的 {@link RequestBody}。
+ * 优先使用 {@link ContentChannel} 的通道传输模式直接写入 OkHttp 的 {@link BufferedSink}；
+ * 若不支持通道模式则回退到回调式写入。未指定 ContentType 时默认使用 "application/text"。</p>
+ *
  * @author linjpxc
  */
 class ContentRequestBody extends RequestBody {

@@ -9,23 +9,44 @@ import java.nio.charset.Charset;
 import java.util.Collection;
 
 /**
+ * {@code multipart/form-data} 格式的 HTTP 请求体，包含多个独立的 Part。
+ *
+ * <p>继承 {@code RequestBody}，内容由 {@link MultipartPart} 集合组成。
+ * 每个请求体拥有唯一的 boundary 分隔符，用于在 HTTP 传输中界定各个 Part 的边界。
+ * 通过 {@link Builder} 构建实例，支持便捷地添加文本、JSON、二进制和文件类型的 Part。</p>
+ *
  * @author linjpxc
  */
 public interface MultipartBody extends RequestBody<Collection<? extends MultipartPart<?>>> {
 
+    /**
+     * 返回 multipart 消息体的 boundary 分隔符。
+     */
     @Nonnull
     String getBoundary();
 
+    /**
+     * 创建一个新的 {@link Builder} 实例。
+     */
     @Nonnull
     static Builder builder() {
         return new MultipartBodyBuilder();
     }
 
+    /**
+     * {@link MultipartBody} 的构建器，提供流式 API 逐个添加 Part 并设置 boundary 和 Content-Type。
+     *
+     * <p>默认使用 ULID 生成的 boundary 和 {@code multipart/form-data} Content-Type。
+     * 通过 {@code addTextPart}、{@code addJsonPart}、{@code addBinaryPart}、{@code addFilePart}
+     * 等便捷方法快速添加常见类型的 Part，也可通过 {@link #addPart(MultipartPart)} 添加自定义实现。</p>
+     */
     interface Builder {
 
+        /** 设置 boundary 分隔符，替换默认的自动生成值。 */
         @Nonnull
         Builder boundary(@Nonnull String boundary);
 
+        /** 设置整个 multipart 消息体的 Content-Type，默认为 {@code multipart/form-data}。 */
         @Nonnull
         Builder contentType(@Nonnull ContentType contentType);
 
@@ -109,9 +130,11 @@ public interface MultipartBody extends RequestBody<Collection<? extends Multipar
             return this.addPart(new DefaultFilePart(name, file, contentType, charset));
         }
 
+        /** 添加自定义的 {@link MultipartPart} 实现。 */
         @Nonnull
         Builder addPart(@Nonnull MultipartPart<?> part);
 
+        /** 构建并返回 {@link MultipartBody} 实例。 */
         @Nonnull
         MultipartBody build();
     }

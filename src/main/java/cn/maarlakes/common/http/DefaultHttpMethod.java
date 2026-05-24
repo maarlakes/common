@@ -6,6 +6,11 @@ import jakarta.annotation.Nullable;
 import java.util.Objects;
 
 /**
+ * {@link HttpMethod} 的默认实现，持有 HTTP 方法名称。
+ *
+ * <p>方法名称比较不区分大小写（如 "get" 和 "GET" 视为等同）。
+ * 由 {@link HttpMethods} 内部创建和管理。</p>
+ *
  * @author linjpxc
  */
 final class DefaultHttpMethod implements HttpMethod {

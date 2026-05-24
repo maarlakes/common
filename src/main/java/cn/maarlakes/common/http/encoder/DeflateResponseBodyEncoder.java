@@ -9,6 +9,11 @@ import java.io.InputStream;
 import java.util.zip.InflaterInputStream;
 
 /**
+ * deflate 编码的响应体解码器，通过 {@link InflaterInputStream} 解压 deflate 格式的响应体。
+ *
+ * <p>作为 SPI 单例服务注册，在 {@code HttpClient} 处理响应时自动识别
+ * Content-Encoding 为 "deflate" 的响应并执行解压。</p>
+ *
  * @author linjpxc
  */
 @Order(Integer.MAX_VALUE)

@@ -10,35 +10,75 @@ import java.nio.charset.Charset;
 import java.util.List;
 
 /**
+ * HTTP 请求模型，封装方法、URI、头部、Cookie、查询参数、表单参数和请求体。
+ *
+ * <p>通过 {@link #builder()} 创建构建器，支持链式调用：
+ * <pre>
+ *   Request request = Request.builder()
+ *       .post("https://example.com/api")
+ *       .json("{\"key\":\"value\"}")
+ *       .setHeader("Authorization", "Bearer token")
+ *       .build();
+ * </pre>
+ *
+ * <p>请求体支持多种类型：纯文本（{@link Builder#text}）、JSON（{@link Builder#json}）、
+ * 表单参数（{@link Builder#addFormParam}）、Multipart（{@link Builder#multipartBody}），
+ * 或通过 {@link Builder#body} 传入自定义 {@link RequestBody}。
+ *
  * @author linjpxc
  */
 public interface Request {
 
+    /** HTTP 方法（GET、POST、PUT、DELETE 等）。 */
     @Nonnull
     HttpMethod getMethod();
 
+    /** 请求目标 URI（不含查询参数片段，查询参数通过 {@link #getQueryParams()} 获取）。 */
     @Nonnull
     URI getUri();
 
+    /** 请求头部集合。 */
     @Nonnull
     HttpHeaders getHeaders();
 
+    /** 请求附带的 Cookie 列表。 */
     @Nonnull
     List<? extends Cookie> getCookies();
 
+    /** 请求的字符编码，用于编码请求体和查询参数。可为 null（使用默认 UTF-8）。 */
     Charset getCharset();
 
+    /** URL 查询参数列表。 */
     List<? extends NameValuePair> getQueryParams();
 
+    /** 表单参数列表（仅用于 POST/PUT 请求，Content-Type 为 application/x-www-form-urlencoded）。 */
     List<? extends NameValuePair> getFormParams();
 
+    /** 请求体。为 null 时，如果有表单参数则自动构建 URL 编码的请求体。 */
     RequestBody<?> getBody();
 
+    /**
+     * 创建请求构建器。
+     *
+     * @return 新的 Builder 实例
+     */
     @Nonnull
     static Builder builder() {
         return new DefaultRequestBuilder();
     }
 
+    /**
+     * 请求构建器，提供流式 API 构建完整的 HTTP 请求。
+     *
+     * <p>便捷方法（{@code get}、{@code post}、{@code json} 等）组合了
+     * 方法和 URI 或请求体的设置，减少样板代码。
+     *
+     * <p>Header 方法分为两种：
+     * <ul>
+     *   <li>{@link #setHeader}：替换同名头的所有值</li>
+     *   <li>{@link #appendHeader}：追加到同名头的值列表</li>
+     * </ul>
+     */
     interface Builder {
 
         @Nonnull

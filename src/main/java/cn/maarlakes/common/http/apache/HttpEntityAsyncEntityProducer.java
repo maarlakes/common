@@ -12,6 +12,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
+ * 基于 Apache HttpClient 5 {@link HttpEntity} 的异步实体生产器适配器。
+ *
+ * <p>将阻塞式的 {@link HttpEntity} 适配为异步的 {@link AsyncEntityProducer}。
+ * 通过 {@link ByteArrayOutputStream} 将实体内容一次性读入内存后写入通道，
+ * 适用于实体内容较小且不支持流式传输的场景。</p>
+ *
  * @author linjpxc
  */
 class HttpEntityAsyncEntityProducer implements AsyncEntityProducer {

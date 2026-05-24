@@ -8,6 +8,12 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /**
+ * JSON 格式的 HTTP 请求体，Content-Type 为 {@code application/json}。
+ *
+ * <p>继承 {@link DefaultTextBody}，自动设置 JSON Content-Type。
+ * 支持两种构造方式：直接传入 JSON 字符串，或传入任意对象通过 fastjson2 序列化为 JSON。
+ * 是 HTTP 客户端发送 JSON 请求的推荐封装。</p>
+ *
  * @author linjpxc
  */
 public class JsonBody extends DefaultTextBody {

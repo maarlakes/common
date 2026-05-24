@@ -6,6 +6,11 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
+ * HTTP 方法常量注册表，缓存标准 HTTP 方法的单例实例。
+ *
+ * <p>预注册了 GET、POST、PUT、DELETE、HEAD、OPTIONS、PATCH、TRACE、CONNECT 九种标准方法。
+ * 对未预注册的方法名会动态创建 {@link DefaultHttpMethod} 实例。</p>
+ *
  * @author linjpxc
  */
 final class HttpMethods {

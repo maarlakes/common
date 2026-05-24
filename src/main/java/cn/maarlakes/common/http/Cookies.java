@@ -12,6 +12,12 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 /**
+ * Cookie 解析工具类，从 HTTP 响应头中解析 Cookie 实例。
+ *
+ * <p>支持解析 Set-Cookie 和 Set-Cookie2 头格式，自动识别并处理
+ * domain、path、max-age、secure、httponly、samesite、version、expires 等 Cookie 属性。
+ * 内部使用预注册的属性处理器映射表来分派各属性的解析逻辑。</p>
+ *
  * @author linjpxc
  */
 public final class Cookies {
@@ -53,6 +59,13 @@ public final class Cookies {
         });
     }
 
+    /**
+     * 解析单个 Set-Cookie 头值字符串为 {@link Cookie} 实例。
+     *
+     * @param cookieValue Set-Cookie 头的值
+     * @return 解析后的 Cookie 实例，输入为空时返回 {@code null}
+     * @throws IllegalArgumentException Cookie 格式不合法时抛出
+     */
     public static Cookie parse(@Nonnull String cookieValue) {
         cookieValue = cookieValue.trim();
         if (cookieValue.isEmpty()) {
@@ -95,6 +108,12 @@ public final class Cookies {
         return builder.build();
     }
 
+    /**
+     * 从 HTTP 响应头集合中解析所有 Cookie，合并 Set-Cookie 和 Set-Cookie2 两个头的值。
+     *
+     * @param headers HTTP 响应头集合
+     * @return 解析出的 Cookie 列表
+     */
     public static List<Cookie> parseFromHeaders(@Nonnull HttpHeaders headers) {
         final List<Cookie> cookies = new ArrayList<>();
         final Header setCookie = headers.getHeader("Set-Cookie");

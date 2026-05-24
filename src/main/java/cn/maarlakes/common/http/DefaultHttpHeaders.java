@@ -6,6 +6,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
+ * {@link HttpHeaders} 的默认实现，使用大小写不敏感的 {@link TreeMap} 存储头映射。
+ *
+ * <p>在构造时即对所有传入的头按名称（忽略大小写）排序并去重，
+ * 保证通过 {@link #getHeader(String)} 查找时不依赖名称的大小写。
+ * 支持从多值映射（如 {@code Map<String, Collection<String>>}）直接构建。</p>
+ *
  * @author linjpxc
  */
 public class DefaultHttpHeaders implements HttpHeaders {
@@ -19,6 +25,12 @@ public class DefaultHttpHeaders implements HttpHeaders {
         this.headers = map;
     }
 
+    /**
+     * 从多值映射构建 HttpHeaders，每个键对应一组头值。
+     *
+     * @param map 头名称到值集合的映射
+     * @return 构建好的 HttpHeaders 实例
+     */
     public static HttpHeaders fromMultiMap(@Nonnull Map<String, ? extends Collection<String>> map) {
         final Map<String, Header> result = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (Map.Entry<String, ? extends Collection<String>> entry : map.entrySet()) {

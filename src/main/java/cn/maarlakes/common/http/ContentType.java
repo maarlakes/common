@@ -11,16 +11,28 @@ import java.util.Collections;
 import java.util.List;
 
 /**
+ * HTTP Content-Type 表示，封装媒体类型和字符编码。
+ *
+ * <p>遵循 RFC 2045 规范，格式为 {@code type/subtype; charset=utf-8}。
+ * 提供常用 Content-Type 的预定义常量（如 {@link #APPLICATION_JSON}、{@link #TEXT_PLAIN}），
+ * 以及通过 {@link #parse} 从字符串解析的工厂方法。
+ *
+ * <p>媒体类型部分通过 {@link #getMediaType()} 获取（如 {@code "application/json"}），
+ * 字符编码通过 {@link #getCharset()} 获取（如 {@code "utf-8"}），均可为 null。
+ *
  * @author linjpxc
  */
 public interface ContentType extends Serializable {
 
     ContentType APPLICATION_ATOM_XML = create("application/atom+xml", StandardCharsets.UTF_8);
 
+    /** {@code application/x-www-form-urlencoded}，表单提交默认格式。 */
     ContentType APPLICATION_FORM_URLENCODED = create("application/x-www-form-urlencoded", StandardCharsets.UTF_8);
 
+    /** {@code application/json}，JSON 数据格式。 */
     ContentType APPLICATION_JSON = create("application/json", StandardCharsets.UTF_8);
 
+    /** {@code application/octet-stream}，二进制流数据。 */
     ContentType APPLICATION_OCTET_STREAM = create("application/octet-stream");
 
     ContentType APPLICATION_SVG_XML = create("application/svg+xml", StandardCharsets.UTF_8);
@@ -36,6 +48,7 @@ public interface ContentType extends Serializable {
     ContentType IMAGE_TIFF = create("image/tiff");
     ContentType IMAGE_WEBP = create("image/webp");
 
+    /** {@code multipart/form-data}，文件上传格式。 */
     ContentType MULTIPART_FORM_DATA = create("multipart/form-data", StandardCharsets.UTF_8);
 
     ContentType TEXT_EVENT_STREAM = create("text/event-stream", StandardCharsets.UTF_8);

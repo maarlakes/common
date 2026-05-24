@@ -6,6 +6,11 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
+ * {@link Cookie.Builder} 的默认实现，提供链式调用的 Cookie 构建器。
+ *
+ * <p>所有属性可选设置，仅 name 为必填。{@link #build()} 时将所有已设置的属性
+ *传递给 {@link DefaultCookie} 构造函数创建不可变的 Cookie 实例。</p>
+ *
  * @author linjpxc
  */
 final class CookieBuilder implements Cookie.Builder {

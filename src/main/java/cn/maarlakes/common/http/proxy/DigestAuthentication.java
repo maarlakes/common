@@ -9,6 +9,19 @@ import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * HTTP Digest 认证的代理凭证，持有用户名和密码，并能根据服务端挑战生成 Authorization 头。
+ *
+ * <p>Digest 认证是一种比 Basic 更安全的代理认证方式，不会明文传输密码。
+ * 本类封装了 RFC 7616 中 Digest 认证的核心计算逻辑：解析服务端的
+ * {@code Proxy-Authenticate} 挑战头，计算 HA1/HA2/Response 值，
+ * 并组装完整的 {@code Proxy-Authorization} 请求头。</p>
+ *
+ * <p>支持 {@code qop} 为 "auth" 和 "auth-int" 的质量保护级别，
+ * 当服务端同时提供多种 qop 时优先选择 "auth"。</p>
+ *
+ * @author linjpxc
+ */
 public class DigestAuthentication implements ProxyAuthentication {
     private static final long serialVersionUID = 4982801167289082558L;
 
@@ -33,6 +46,14 @@ public class DigestAuthentication implements ProxyAuthentication {
         return username;
     }
 
+    /**
+     * 根据服务端的 Digest 挑战头生成完整的 Proxy-Authorization 值。
+     *
+     * @param digestAuthenticate 服务端返回的 Proxy-Authenticate 头内容
+     * @param method             请求的 HTTP 方法（如 GET、POST）
+     * @param uri                请求的 URI 路径
+     * @return 组装好的 Digest Authorization 头值，若挑战格式不合法则返回 {@code null}
+     */
     public String toAuthorization(@Nonnull String digestAuthenticate, String method, String uri) {
         final Map<String, String> challenge = parseChallenge(digestAuthenticate);
         final String realm = challenge.get("realm");
@@ -77,6 +98,10 @@ public class DigestAuthentication implements ProxyAuthentication {
         return sb.toString();
     }
 
+    /**
+     * 解析 Proxy-Authenticate 头中的键值对参数（realm、nonce、qop、opaque 等）。
+     * 同时支持带引号和不带引号的值格式。
+     */
     private static Map<String, String> parseChallenge(@Nonnull String headerValue) {
         final Map<String, String> result = new HashMap<>();
         final String trimmed = headerValue.trim();
@@ -157,6 +182,12 @@ public class DigestAuthentication implements ProxyAuthentication {
         return result;
     }
 
+    /**
+     * 按照 RFC 7616 规范计算 Digest 认证的 response 值。
+     * 计算公式：HA1 = MD5(username:realm:password), HA2 = MD5(method:uri)，
+     * 有 qop 时 response = MD5(HA1:nonce:nc:cnonce:qop:HA2)，
+     * 无 qop 时 response = MD5(HA1:nonce:HA2)。
+     */
     @Nonnull
     private static String computeResponse(
             @Nonnull String username, @Nonnull String password, @Nonnull String realm,
@@ -171,6 +202,9 @@ public class DigestAuthentication implements ProxyAuthentication {
         return md5Hex(ha1 + ":" + nonce + ":" + ha2);
     }
 
+    /**
+     * 对输入字符串计算 MD5 摘要并返回十六进制字符串。
+     */
     @Nonnull
     private static String md5Hex(@Nonnull String input) {
         try {
@@ -181,6 +215,9 @@ public class DigestAuthentication implements ProxyAuthentication {
         }
     }
 
+    /**
+     * 使用安全随机数生成器生成一个 16 字符的十六进制 nonce 值，用于 Digest 认证的 cnonce 字段。
+     */
     @Nonnull
     public static String generateNonce() {
         final byte[] bytes = new byte[8];

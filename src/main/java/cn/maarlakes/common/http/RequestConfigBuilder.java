@@ -8,6 +8,10 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
+ * {@link RequestConfig.Builder} 的默认实现，构建不可变的 {@link RequestConfig} 实例。
+ *
+ * <p>所有配置项默认为 null，表示使用底层库的默认值。
+ *
  * @author linjpxc
  */
 class RequestConfigBuilder implements RequestConfig.Builder {
