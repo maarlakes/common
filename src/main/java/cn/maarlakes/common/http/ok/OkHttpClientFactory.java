@@ -1,21 +1,27 @@
 package cn.maarlakes.common.http.ok;
 
+import cn.maarlakes.common.Order;
 import cn.maarlakes.common.http.HttpClient;
 import cn.maarlakes.common.http.HttpClientConfig;
 import cn.maarlakes.common.http.HttpClientFactory;
+import cn.maarlakes.common.spi.SpiService;
 import jakarta.annotation.Nonnull;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.*;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author linjpxc
  */
+@Order(100)
+@SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class OkHttpClientFactory implements HttpClientFactory {
-
     private static final Logger log = LoggerFactory.getLogger(OkHttpClientFactory.class);
 
     @Nonnull

@@ -100,7 +100,7 @@ public class NettyAsyncHttpClient implements HttpClient {
                 return super.cancel(mayInterruptIfRunning);
             }
         };
-        final PushBodySink sink = new PushBodySink();
+        final cn.maarlakes.common.http.PushBodySink sink = new cn.maarlakes.common.http.PushBodySink();
         final ListenableFuture<Void> listenableFuture = this.client.executeRequest(
                 toBuilder(request, effectiveConfig),
                 new AsyncCompletionHandler<Void>() {
@@ -275,131 +275,22 @@ public class NettyAsyncHttpClient implements HttpClient {
                 status.getStatusText(),
                 httpHeaders,
                 uri,
-                parseCookiesFromHeaders(httpHeaders),
+                Cookies.parseFromHeaders(httpHeaders),
                 status.getRemoteAddress()
         );
     }
 
-    private static List<Cookie> parseCookiesFromHeaders(HttpHeaders headers) {
-        final List<Cookie> cookies = new ArrayList<>();
-        final Header setCookie = headers.getHeader("Set-Cookie");
-        if (setCookie != null && CollectionUtils.isNotEmpty(setCookie.getValues())) {
-            for (String value : setCookie.getValues()) {
-                final Cookie cookie = Cookies.parse(value);
-                if (cookie != null) {
-                    cookies.add(cookie);
-                }
-            }
-        }
-        final Header setCookie2 = headers.getHeader("set-cookie2");
-        if (setCookie2 != null && CollectionUtils.isNotEmpty(setCookie2.getValues())) {
-            for (String value : setCookie2.getValues()) {
-                final Cookie cookie = Cookies.parse(value);
-                if (cookie != null) {
-                    cookies.add(cookie);
-                }
-            }
-        }
-        return cookies;
-    }
-
-    private static class PushBodySink implements BodySink {
-        private final List<byte[]> buffer = new ArrayList<>();
-        private BodyConsumer<?> consumer;
-        private boolean completed;
-        private Throwable error;
-        private final CompletableFuture<Void> signal = new CompletableFuture<>();
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public synchronized <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
-            this.consumer = consumer;
-            for (byte[] chunk : buffer) {
-                consumer.onChunk(chunk, 0, chunk.length);
-            }
-            buffer.clear();
-
-            if (error != null) {
-                try {
-                    consumer.onError(error);
-                } catch (Exception onErrorEx) {
-                    error.addSuppressed(onErrorEx);
-                }
-                final CompletableFuture<T> future = new CompletableFuture<>();
-                future.completeExceptionally(error);
-                return future;
-            }
-            if (completed) {
-                final CompletableFuture<T> future = new CompletableFuture<>();
-                try {
-                    future.complete(consumer.onComplete());
-                } catch (Exception e) {
-                    try {
-                        consumer.onError(e);
-                    } catch (Exception onErrorEx) {
-                        e.addSuppressed(onErrorEx);
-                    }
-                    future.completeExceptionally(e);
-                }
-                return future;
-            }
-
-            final CompletableFuture<T> future = new CompletableFuture<>();
-            signal.whenComplete((v, ex) -> {
-                if (ex != null) {
-                    try {
-                        consumer.onError(ex);
-                    } catch (Exception onErrorEx) {
-                        ex.addSuppressed(onErrorEx);
-                    }
-                    future.completeExceptionally(ex);
-                } else {
-                    try {
-                        future.complete(consumer.onComplete());
-                    } catch (Exception e) {
-                        try {
-                            consumer.onError(e);
-                        } catch (Exception onErrorEx) {
-                            e.addSuppressed(onErrorEx);
-                        }
-                        future.completeExceptionally(e);
-                    }
-                }
-            });
-            return future;
-        }
-
-        synchronized void pushChunk(byte[] data, int offset, int length) {
-            final byte[] copy = Arrays.copyOfRange(data, offset, offset + length);
-            if (consumer != null) {
-                ((BodyConsumer<Object>) consumer).onChunk(copy, 0, copy.length);
-            } else {
-                buffer.add(copy);
-            }
-        }
-
-        void complete() {
-            synchronized (this) {
-                completed = true;
-            }
-            signal.complete(null);
-        }
-
-        void fail(Throwable t) {
-            synchronized (this) {
-                error = t;
-            }
-            signal.completeExceptionally(t);
-        }
-    }
 
     private static RequestBuilder toBuilder(@Nonnull HttpMethod method, @Nonnull String url) {
         return Dsl.request(method.name(), url);
     }
 
     @Override
-    public void close() throws IOException {
-        this.client.close();
+    public void close() {
+        try {
+            this.client.close();
+        } catch (Exception ignored) {
+        }
     }
 
     protected static class DefaultResponse implements Response {

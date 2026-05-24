@@ -17,7 +17,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.*;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -169,7 +168,7 @@ public class JdkHttpClient implements HttpClient {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (this.ownsExecutor && this.executor instanceof ExecutorService) {
             ((ExecutorService) executor).shutdown();
         }
@@ -229,7 +228,7 @@ public class JdkHttpClient implements HttpClient {
                 connection.getResponseMessage(),
                 headers,
                 request.getUri(),
-                parseCookies(headers),
+                Cookies.parseFromHeaders(headers),
                 remoteAddress
         );
     }
@@ -249,29 +248,6 @@ public class JdkHttpClient implements HttpClient {
                 body.writeTo(out);
             }
         }
-    }
-
-    private static List<Cookie> parseCookies(HttpHeaders headers) {
-        List<Cookie> cookies = new ArrayList<>();
-        Header header = headers.getHeader("Set-Cookie");
-        if (header != null && CollectionUtils.isNotEmpty(header.getValues())) {
-            for (String value : header.getValues()) {
-                final Cookie cookie = Cookies.parse(value);
-                if (cookie != null) {
-                    cookies.add(cookie);
-                }
-            }
-        }
-        header = headers.getHeader("set-cookie2");
-        if (header != null && CollectionUtils.isNotEmpty(header.getValues())) {
-            for (String value : header.getValues()) {
-                final Cookie cookie = Cookies.parse(value);
-                if (cookie != null) {
-                    cookies.add(cookie);
-                }
-            }
-        }
-        return cookies;
     }
 
     private HttpURLConnection createConnection(@Nonnull URL url, @Nonnull Request request, RequestConfig config) throws Exception {
@@ -507,27 +483,7 @@ public class JdkHttpClient implements HttpClient {
         @Nonnull
         @Override
         public List<? extends Cookie> getCookies() {
-            Header header = this.getHeaders().getHeader("Set-Cookie");
-            final List<Cookie> cookies = new ArrayList<>();
-            if (header != null && CollectionUtils.isNotEmpty(header.getValues())) {
-                for (String value : header.getValues()) {
-                    final Cookie cookie = Cookies.parse(value);
-                    if (cookie != null) {
-                        cookies.add(cookie);
-                    }
-                }
-            }
-            header = this.getHeaders().getHeader("set-cookie2");
-            if (header != null && CollectionUtils.isNotEmpty(header.getValues())) {
-                for (String value : header.getValues()) {
-                    final Cookie cookie = Cookies.parse(value);
-                    if (cookie != null) {
-                        cookies.add(cookie);
-                    }
-                }
-            }
-
-            return cookies;
+            return Cookies.parseFromHeaders(this.headers);
         }
 
         @Override

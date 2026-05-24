@@ -3,6 +3,8 @@ package cn.maarlakes.common.http;
 import cn.maarlakes.common.factory.datetime.DateTimeFactories;
 import jakarta.annotation.Nonnull;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
@@ -91,5 +93,28 @@ public final class Cookies {
             }
         }
         return builder.build();
+    }
+
+    public static List<Cookie> parseFromHeaders(@Nonnull HttpHeaders headers) {
+        final List<Cookie> cookies = new ArrayList<>();
+        final Header setCookie = headers.getHeader("Set-Cookie");
+        if (setCookie != null) {
+            for (String value : setCookie.getValues()) {
+                final Cookie cookie = parse(value);
+                if (cookie != null) {
+                    cookies.add(cookie);
+                }
+            }
+        }
+        final Header setCookie2 = headers.getHeader("set-cookie2");
+        if (setCookie2 != null) {
+            for (String value : setCookie2.getValues()) {
+                final Cookie cookie = parse(value);
+                if (cookie != null) {
+                    cookies.add(cookie);
+                }
+            }
+        }
+        return cookies;
     }
 }

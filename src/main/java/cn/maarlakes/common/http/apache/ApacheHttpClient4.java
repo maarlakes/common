@@ -106,56 +106,21 @@ public class ApacheHttpClient4 implements HttpClient {
 
     @Nonnull
     @Override
-    @SuppressWarnings("DuplicatedCode")
     public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
         final ResponseFuture future = new ResponseFuture();
         this.executor.execute(() -> {
             final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
             InputStream contentStream = null;
             try {
-                final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
-                        .setUri(toUri(request));
-                settingHeader(builder, request);
-                if (request.getCharset() != null) {
-                    builder.setCharset(request.getCharset());
-                }
-                settingFormParams(builder, request);
-                if (request.getBody() != null) {
-                    if (request.getBody() instanceof MultipartBody) {
-                        settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
-                    } else {
-                        contentStream = request.getBody().getContentStream();
-                        if (contentStream != null) {
-                            final ContentType ct = request.getBody().getContentType();
-                            builder.setEntity(new InputStreamEntity(contentStream, ct != null ? toApacheContentType(ct) : null));
-                        }
-                    }
-                }
-                final HttpClientContext context = HttpClientContext.create();
-                context.setCookieStore(new BasicCookieStore());
-                final org.apache.http.client.config.RequestConfig requestConfig = to(effectiveConfig);
-                if (requestConfig != null) {
-                    context.setRequestConfig(requestConfig);
-                }
-                if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
-                    for (Apache4ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(Apache4ProxyAuthenticator.class, this.getClass().getClassLoader())) {
-                        if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
-                            authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
-                            break;
-                        }
-                    }
-                }
-
-                if (CollectionUtils.isNotEmpty(request.getCookies())) {
-                    builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
-                }
-                final HttpUriRequest uriRequest = builder.build();
+                final PreparedRequest prepared = prepareRequest(request, effectiveConfig);
+                contentStream = prepared.contentStream;
+                final HttpUriRequest uriRequest = prepared.request;
                 future.request = uriRequest;
                 if (future.isCancelled()) {
                     return;
                 }
 
-                final Response result = this.client.execute(determineTarget(uriRequest), uriRequest, (ResponseHandler<Response>) response -> new DefaultResponse(request.getUri(), response, context), context);
+                final Response result = this.client.execute(determineTarget(uriRequest), uriRequest, (ResponseHandler<Response>) response -> new DefaultResponse(request.getUri(), response, prepared.context), prepared.context);
                 if (!future.isCancelled()) {
                     future.complete(result);
                 }
@@ -177,50 +142,15 @@ public class ApacheHttpClient4 implements HttpClient {
 
     @Nonnull
     @Override
-    @SuppressWarnings("DuplicatedCode")
     public <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull cn.maarlakes.common.http.ResponseHandler<T> handler) {
         final HandlerFuture<T> future = new HandlerFuture<>();
         this.executor.execute(() -> {
             final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
             InputStream contentStream = null;
             try {
-                final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
-                        .setUri(toUri(request));
-                settingHeader(builder, request);
-                if (request.getCharset() != null) {
-                    builder.setCharset(request.getCharset());
-                }
-                settingFormParams(builder, request);
-                if (request.getBody() != null) {
-                    if (request.getBody() instanceof MultipartBody) {
-                        settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
-                    } else {
-                        contentStream = request.getBody().getContentStream();
-                        if (contentStream != null) {
-                            final ContentType ct = request.getBody().getContentType();
-                            builder.setEntity(new InputStreamEntity(contentStream, ct != null ? toApacheContentType(ct) : null));
-                        }
-                    }
-                }
-                final HttpClientContext context = HttpClientContext.create();
-                context.setCookieStore(new BasicCookieStore());
-                final org.apache.http.client.config.RequestConfig requestConfig = to(effectiveConfig);
-                if (requestConfig != null) {
-                    context.setRequestConfig(requestConfig);
-                }
-                if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
-                    for (Apache4ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(Apache4ProxyAuthenticator.class, this.getClass().getClassLoader())) {
-                        if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
-                            authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
-                            break;
-                        }
-                    }
-                }
-
-                if (CollectionUtils.isNotEmpty(request.getCookies())) {
-                    builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
-                }
-                final HttpUriRequest uriRequest = builder.build();
+                final PreparedRequest prepared = prepareRequest(request, effectiveConfig);
+                contentStream = prepared.contentStream;
+                final HttpUriRequest uriRequest = prepared.request;
                 future.request = uriRequest;
                 if (future.isCancelled()) {
                     return;
@@ -228,8 +158,8 @@ public class ApacheHttpClient4 implements HttpClient {
 
                 this.client.execute(determineTarget(uriRequest), uriRequest, response -> {
                     try {
-                        final cn.maarlakes.common.http.HttpResponse httpResponse = createResponseInfo(request.getUri(), response, context);
-                        final BodySink body = new ApacheBodySink(response.getEntity());
+                        final cn.maarlakes.common.http.HttpResponse httpResponse = createResponseInfo(request.getUri(), response, prepared.context);
+                        final BodySink body = new InputStreamBodySink(response.getEntity() != null ? response.getEntity().getContent() : null);
                         final CompletableFuture<T> result = handler.handle(httpResponse, body);
                         result.whenComplete((val, err) -> {
                             if (err != null) {
@@ -242,7 +172,7 @@ public class ApacheHttpClient4 implements HttpClient {
                         future.completeExceptionally(new HttpClientException(e.getMessage(), e));
                     }
                     return null;
-                }, context);
+                }, prepared.context);
             } catch (Exception e) {
                 if (!future.isCancelled()) {
                     future.completeExceptionally(new HttpClientException(e.getMessage(), e));
@@ -260,12 +190,12 @@ public class ApacheHttpClient4 implements HttpClient {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (this.client instanceof AutoCloseable) {
             try {
                 ((AutoCloseable) this.client).close();
             } catch (Exception e) {
-                throw new IOException(e);
+                throw new RuntimeException(e);
             }
         }
         if (this.ownsExecutor && this.executor instanceof ExecutorService) {
@@ -325,6 +255,59 @@ public class ApacheHttpClient4 implements HttpClient {
     }
 
     @SuppressWarnings("DuplicatedCode")
+    private static final class PreparedRequest {
+        final HttpUriRequest request;
+        final HttpClientContext context;
+        final InputStream contentStream;
+
+        PreparedRequest(HttpUriRequest request, HttpClientContext context, InputStream contentStream) {
+            this.request = request;
+            this.context = context;
+            this.contentStream = contentStream;
+        }
+    }
+
+    private PreparedRequest prepareRequest(@Nonnull Request request, RequestConfig effectiveConfig) throws Exception {
+        final RequestBuilder builder = RequestBuilder.create(request.getMethod().name())
+                .setUri(toUri(request));
+        settingHeader(builder, request);
+        if (request.getCharset() != null) {
+            builder.setCharset(request.getCharset());
+        }
+        settingFormParams(builder, request);
+        InputStream contentStream = null;
+        if (request.getBody() != null) {
+            if (request.getBody() instanceof MultipartBody) {
+                settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
+            } else {
+                contentStream = request.getBody().getContentStream();
+                if (contentStream != null) {
+                    final ContentType ct = request.getBody().getContentType();
+                    builder.setEntity(new InputStreamEntity(contentStream, ct != null ? toApacheContentType(ct) : null));
+                }
+            }
+        }
+        final HttpClientContext context = HttpClientContext.create();
+        context.setCookieStore(new BasicCookieStore());
+        final org.apache.http.client.config.RequestConfig requestConfig = to(effectiveConfig);
+        if (requestConfig != null) {
+            context.setRequestConfig(requestConfig);
+        }
+        if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
+            for (Apache4ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(Apache4ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
+                    authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
+                    break;
+                }
+            }
+        }
+
+        if (CollectionUtils.isNotEmpty(request.getCookies())) {
+            builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
+        }
+        return new PreparedRequest(builder.build(), context, contentStream);
+    }
+
     private static void settingMultipart(@Nonnull RequestBuilder builder, @Nonnull MultipartBody body, Charset charset) {
         if (CollectionUtils.isNotEmpty(body.getContent())) {
             final MultipartEntityBuilder multipartEntityBuilder = MultipartEntityBuilder.create();
@@ -395,6 +378,14 @@ public class ApacheHttpClient4 implements HttpClient {
         return target;
     }
 
+    private static HttpHeaders toHttpHeaders(HttpResponse response) {
+        final Map<String, List<String>> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (org.apache.http.Header header : response.getAllHeaders()) {
+            map.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
+        }
+        return DefaultHttpHeaders.fromMultiMap(map);
+    }
+
     private static final class ResponseFuture extends CompletableFuture<Response> {
         private HttpUriRequest request;
 
@@ -434,12 +425,7 @@ public class ApacheHttpClient4 implements HttpClient {
         } else {
             remoteAddress = null;
         }
-        final Map<String, List<String>> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        for (org.apache.http.Header header : response.getAllHeaders()) {
-            map.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
-        }
-        final Map<String, Header> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        map.forEach((k, v) -> headers.put(k, new DefaultHeader(k, v)));
+        final HttpHeaders httpHeaders = toHttpHeaders(response);
 
         final CookieStore cookieStore = (CookieStore) context.getAttribute(HttpClientContext.COOKIE_STORE);
         final List<Cookie> cookies = new ArrayList<>();
@@ -460,53 +446,11 @@ public class ApacheHttpClient4 implements HttpClient {
         return new DefaultHttpResponse(
                 response.getStatusLine().getStatusCode(),
                 response.getStatusLine().getReasonPhrase(),
-                new DefaultHttpHeaders(headers),
+                httpHeaders,
                 uri,
                 cookies,
                 remoteAddress
         );
-    }
-
-    private static class ApacheBodySink implements BodySink {
-        private final HttpEntity entity;
-
-        private ApacheBodySink(HttpEntity entity) {
-            this.entity = entity;
-        }
-
-        @Override
-        public <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
-            final CompletableFuture<T> future = new CompletableFuture<>();
-            if (this.entity == null) {
-                try {
-                    future.complete(consumer.onComplete());
-                } catch (Exception e) {
-                    try {
-                        consumer.onError(e);
-                    } catch (Exception onErrorEx) {
-                        e.addSuppressed(onErrorEx);
-                    }
-                    future.completeExceptionally(e);
-                }
-                return future;
-            }
-            try (InputStream in = this.entity.getContent()) {
-                final byte[] buffer = new byte[8192];
-                int n;
-                while ((n = in.read(buffer)) != -1) {
-                    consumer.onChunk(buffer, 0, n);
-                }
-                future.complete(consumer.onComplete());
-            } catch (Exception e) {
-                try {
-                    consumer.onError(e);
-                } catch (Exception onErrorEx) {
-                    e.addSuppressed(onErrorEx);
-                }
-                future.completeExceptionally(e);
-            }
-            return future;
-        }
     }
 
     private static class DefaultResponse implements Response {
@@ -569,13 +513,7 @@ public class ApacheHttpClient4 implements HttpClient {
         @Nonnull
         @Override
         public HttpHeaders getHeaders() {
-            final Map<String, List<String>> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            for (org.apache.http.Header header : this.response.getAllHeaders()) {
-                map.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
-            }
-            final Map<String, Header> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            map.forEach((k, v) -> headers.put(k, new DefaultHeader(k, v)));
-            return new DefaultHttpHeaders(headers);
+            return toHttpHeaders(this.response);
         }
 
         @Nonnull

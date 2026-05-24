@@ -1,8 +1,10 @@
 package cn.maarlakes.common.http.apache;
 
+import cn.maarlakes.common.Order;
 import cn.maarlakes.common.http.HttpClient;
 import cn.maarlakes.common.http.HttpClientConfig;
 import cn.maarlakes.common.http.HttpClientFactory;
+import cn.maarlakes.common.spi.SpiService;
 import jakarta.annotation.Nonnull;
 
 import javax.net.ssl.SSLContext;
@@ -12,6 +14,8 @@ import java.util.concurrent.ForkJoinPool;
 /**
  * @author linjpxc
  */
+@Order(300)
+@SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class ApacheHttpClient4Factory implements HttpClientFactory {
 
     @Nonnull

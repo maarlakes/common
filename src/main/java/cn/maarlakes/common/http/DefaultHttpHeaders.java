@@ -2,10 +2,7 @@ package cn.maarlakes.common.http;
 
 import jakarta.annotation.Nonnull;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -20,6 +17,14 @@ public class DefaultHttpHeaders implements HttpHeaders {
         final Map<String, Header> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         map.putAll(headers);
         this.headers = map;
+    }
+
+    public static HttpHeaders fromMultiMap(@Nonnull Map<String, ? extends Collection<String>> map) {
+        final Map<String, Header> result = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (Map.Entry<String, ? extends Collection<String>> entry : map.entrySet()) {
+            result.put(entry.getKey(), new DefaultHeader(entry.getKey(), entry.getValue()));
+        }
+        return new DefaultHttpHeaders(result);
     }
 
     @Override

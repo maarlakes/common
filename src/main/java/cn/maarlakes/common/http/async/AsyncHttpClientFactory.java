@@ -1,8 +1,10 @@
 package cn.maarlakes.common.http.async;
 
+import cn.maarlakes.common.Order;
 import cn.maarlakes.common.http.HttpClient;
 import cn.maarlakes.common.http.HttpClientConfig;
 import cn.maarlakes.common.http.HttpClientFactory;
+import cn.maarlakes.common.spi.SpiService;
 import io.netty.channel.nio.NioEventLoopGroup;
 import jakarta.annotation.Nonnull;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
@@ -16,6 +18,8 @@ import java.util.concurrent.Executor;
 /**
  * @author linjpxc
  */
+@Order(400)
+@SpiService(lifecycle = SpiService.Lifecycle.SINGLETON)
 public class AsyncHttpClientFactory implements HttpClientFactory {
 
     @Nonnull

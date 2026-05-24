@@ -3,7 +3,6 @@ package cn.maarlakes.common.http;
 import jakarta.annotation.Nonnull;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.util.List;
@@ -57,7 +56,7 @@ public class FilterableHttpClient implements HttpClient {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         this.delegate.close();
     }
 

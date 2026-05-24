@@ -14,7 +14,6 @@ import okhttp3.RequestBody;
 
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -134,7 +133,7 @@ public class OkAsyncHttpClient implements HttpClient {
                 public void onResponse(@Nonnull Call call, @Nonnull okhttp3.Response response) throws IOException {
                     try {
                         final HttpResponse info = createResponseInfo(response, responseCookies);
-                        final BodySink body = new OkBodySink(response.body());
+                        final BodySink body = new InputStreamBodySink(response.body() != null ? response.body().byteStream() : null);
                         final CompletableFuture<T> result = handler.handle(info, body);
                         result.whenComplete((val, err) -> {
                             if (err != null) {
@@ -286,7 +285,7 @@ public class OkAsyncHttpClient implements HttpClient {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
     }
 
     private static class ResponseFuture extends CompletableFuture<Response> {
@@ -367,48 +366,6 @@ public class OkAsyncHttpClient implements HttpClient {
                 new ArrayList<>(cookies),
                 remoteAddress
         );
-    }
-
-    private static class OkBodySink implements BodySink {
-        private final okhttp3.ResponseBody responseBody;
-
-        private OkBodySink(okhttp3.ResponseBody responseBody) {
-            this.responseBody = responseBody;
-        }
-
-        @Override
-        public <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
-            final CompletableFuture<T> future = new CompletableFuture<>();
-            if (this.responseBody == null) {
-                try {
-                    future.complete(consumer.onComplete());
-                } catch (Exception e) {
-                    try {
-                        consumer.onError(e);
-                    } catch (Exception onErrorEx) {
-                        e.addSuppressed(onErrorEx);
-                    }
-                    future.completeExceptionally(e);
-                }
-                return future;
-            }
-            try (InputStream in = this.responseBody.byteStream()) {
-                final byte[] buffer = new byte[8192];
-                int n;
-                while ((n = in.read(buffer)) != -1) {
-                    consumer.onChunk(buffer, 0, n);
-                }
-                future.complete(consumer.onComplete());
-            } catch (Exception e) {
-                try {
-                    consumer.onError(e);
-                } catch (Exception onErrorEx) {
-                    e.addSuppressed(onErrorEx);
-                }
-                future.completeExceptionally(e);
-            }
-            return future;
-        }
     }
 
     private static class DefaultResponse implements Response {

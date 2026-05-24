@@ -89,46 +89,12 @@ public class ApacheAsyncHttpClient implements HttpClient {
 
     @Nonnull
     @Override
-    @SuppressWarnings("DuplicatedCode")
     public CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
         final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
         try {
-            final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
-                    .setUri(Apaches.toUri(request));
-            settingHeader(builder, request);
-            if (request.getCharset() != null) {
-                builder.setCharset(request.getCharset());
-            }
-            settingFormParams(builder, request);
-            if (request.getBody() != null) {
-                if (request.getBody() instanceof MultipartBody) {
-                    settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
-                } else {
-                    builder.setEntity(new ContentAsyncEntityProducer(request.getBody()));
-                }
-            }
-
-            final HttpClientContext context = HttpClientContext.create();
-            context.setCookieStore(new BasicCookieStore());
-            final org.apache.hc.client5.http.config.RequestConfig requestConfig = to(effectiveConfig);
-            if (requestConfig != null) {
-                context.setRequestConfig(requestConfig);
-            }
-            if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
-                for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
-                    if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
-                        authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
-                        break;
-                    }
-                }
-            }
-
-            if (CollectionUtils.isNotEmpty(request.getCookies())) {
-                builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
-            }
-
+            final PreparedRequest prepared = prepareRequest(request, effectiveConfig);
             final ResponseFuture future = new ResponseFuture();
-            future.future = this.client.execute(builder.build(), new ResponseAsyncResponseConsumer(request.getUri(), context), null, context, new FutureCallback<Response>() {
+            future.future = this.client.execute(prepared.request, new ResponseAsyncResponseConsumer(request.getUri(), prepared.context), null, prepared.context, new FutureCallback<Response>() {
                 @Override
                 public void completed(Response response) {
                     future.complete(response);
@@ -155,46 +121,12 @@ public class ApacheAsyncHttpClient implements HttpClient {
 
     @Nonnull
     @Override
-    @SuppressWarnings("DuplicatedCode")
     public <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler) {
         final RequestConfig effectiveConfig = RequestConfigs.merge(this.defaultConfig, config);
         try {
-            final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
-                    .setUri(Apaches.toUri(request));
-            settingHeader(builder, request);
-            if (request.getCharset() != null) {
-                builder.setCharset(request.getCharset());
-            }
-            settingFormParams(builder, request);
-            if (request.getBody() != null) {
-                if (request.getBody() instanceof MultipartBody) {
-                    settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
-                } else {
-                    builder.setEntity(new ContentAsyncEntityProducer(request.getBody()));
-                }
-            }
-
-            final HttpClientContext context = HttpClientContext.create();
-            context.setCookieStore(new BasicCookieStore());
-            final org.apache.hc.client5.http.config.RequestConfig requestConfig = to(effectiveConfig);
-            if (requestConfig != null) {
-                context.setRequestConfig(requestConfig);
-            }
-            if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
-                for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
-                    if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
-                        authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
-                        break;
-                    }
-                }
-            }
-
-            if (CollectionUtils.isNotEmpty(request.getCookies())) {
-                builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
-            }
-
+            final PreparedRequest prepared = prepareRequest(request, effectiveConfig);
             final HandlerFuture<T> future = new HandlerFuture<>();
-            future.future = this.client.execute(builder.build(), new StreamingResponseConsumer<>(request, handler), null, context, new FutureCallback<T>() {
+            future.future = this.client.execute(prepared.request, new StreamingResponseConsumer<>(request, handler), null, prepared.context, new FutureCallback<T>() {
                 @Override
                 public void completed(T response) {
                     future.complete(response);
@@ -220,12 +152,12 @@ public class ApacheAsyncHttpClient implements HttpClient {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (this.client instanceof AutoCloseable) {
             try {
                 ((AutoCloseable) this.client).close();
             } catch (Exception e) {
-                throw new IOException(e);
+                throw new RuntimeException(e);
             }
         }
     }
@@ -256,6 +188,54 @@ public class ApacheAsyncHttpClient implements HttpClient {
             builder.setMaxRedirects(config.getMaxRedirects());
         }
         return builder.build();
+    }
+
+    private static final class PreparedRequest {
+        final org.apache.hc.core5.http.nio.AsyncRequestProducer request;
+        final HttpClientContext context;
+
+        PreparedRequest(org.apache.hc.core5.http.nio.AsyncRequestProducer request, HttpClientContext context) {
+            this.request = request;
+            this.context = context;
+        }
+    }
+
+    private PreparedRequest prepareRequest(@Nonnull Request request, RequestConfig effectiveConfig) throws Exception {
+        final AsyncRequestBuilder builder = AsyncRequestBuilder.create(request.getMethod().name())
+                .setUri(Apaches.toUri(request));
+        settingHeader(builder, request);
+        if (request.getCharset() != null) {
+            builder.setCharset(request.getCharset());
+        }
+        settingFormParams(builder, request);
+        if (request.getBody() != null) {
+            if (request.getBody() instanceof MultipartBody) {
+                settingMultipart(builder, (MultipartBody) request.getBody(), request.getCharset());
+            } else {
+                builder.setEntity(new ContentAsyncEntityProducer(request.getBody()));
+            }
+        }
+
+        final HttpClientContext context = HttpClientContext.create();
+        context.setCookieStore(new BasicCookieStore());
+        final org.apache.hc.client5.http.config.RequestConfig requestConfig = to(effectiveConfig);
+        if (requestConfig != null) {
+            context.setRequestConfig(requestConfig);
+        }
+        if (effectiveConfig != null && effectiveConfig.getProxy() != null && effectiveConfig.getProxyAuthentication() != null) {
+            for (ProxyAuthenticator authenticator : SpiServiceLoader.loadShared(ProxyAuthenticator.class, this.getClass().getClassLoader())) {
+                if (authenticator.supported(effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication())) {
+                    authenticator.authenticate(context, effectiveConfig.getProxy(), effectiveConfig.getProxyAuthentication());
+                    break;
+                }
+            }
+        }
+
+        if (CollectionUtils.isNotEmpty(request.getCookies())) {
+            builder.addHeader("Cookie", request.getCookies().stream().map(item -> item.name() + "=" + item.value()).collect(Collectors.joining(";")));
+        }
+
+        return new PreparedRequest(builder.build(), context);
     }
 
     private static void settingFormParams(@Nonnull AsyncRequestBuilder builder, @Nonnull Request request) {
@@ -381,7 +361,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
                 response.getReasonPhrase(),
                 headers,
                 uri,
-                parseCookiesFromHeaders(response),
+                Cookies.parseFromHeaders(headers),
                 getRemoteAddress(context)
         );
     }
@@ -391,22 +371,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
         for (org.apache.hc.core5.http.Header header : response.getHeaders()) {
             map.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
         }
-        final Map<String, Header> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        map.forEach((k, v) -> headers.put(k, new DefaultHeader(k, v)));
-        return new DefaultHttpHeaders(headers);
-    }
-
-    private static List<cn.maarlakes.common.http.Cookie> parseCookiesFromHeaders(HttpResponse response) {
-        final List<cn.maarlakes.common.http.Cookie> cookies = new ArrayList<>();
-        for (org.apache.hc.core5.http.Header header : response.getHeaders()) {
-            if ("Set-Cookie".equalsIgnoreCase(header.getName()) || "set-cookie2".equalsIgnoreCase(header.getName())) {
-                final cn.maarlakes.common.http.Cookie cookie = Cookies.parse(header.getValue());
-                if (cookie != null) {
-                    cookies.add(cookie);
-                }
-            }
-        }
-        return cookies;
+        return DefaultHttpHeaders.fromMultiMap(map);
     }
 
     private static SocketAddress getRemoteAddress(HttpContext context) {
@@ -417,100 +382,11 @@ public class ApacheAsyncHttpClient implements HttpClient {
         return endpoint.getRemoteAddress();
     }
 
-    private static class PushBodySink implements BodySink {
-        private final List<byte[]> buffer = new ArrayList<>();
-        private BodyConsumer<?> consumer;
-        private boolean completed;
-        private Throwable error;
-        private final CompletableFuture<Void> signal = new CompletableFuture<>();
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public synchronized <T> CompletableFuture<T> consume(@Nonnull BodyConsumer<T> consumer) {
-            this.consumer = consumer;
-            for (byte[] chunk : buffer) {
-                consumer.onChunk(chunk, 0, chunk.length);
-            }
-            buffer.clear();
-
-            if (error != null) {
-                try {
-                    consumer.onError(error);
-                } catch (Exception onErrorEx) {
-                    error.addSuppressed(onErrorEx);
-                }
-                final CompletableFuture<T> future = new CompletableFuture<>();
-                future.completeExceptionally(error);
-                return future;
-            }
-            if (completed) {
-                final CompletableFuture<T> future = new CompletableFuture<>();
-                try {
-                    future.complete(consumer.onComplete());
-                } catch (Exception e) {
-                    try {
-                        consumer.onError(e);
-                    } catch (Exception onErrorEx) {
-                        e.addSuppressed(onErrorEx);
-                    }
-                    future.completeExceptionally(e);
-                }
-                return future;
-            }
-
-            final CompletableFuture<T> future = new CompletableFuture<>();
-            signal.whenComplete((v, ex) -> {
-                if (ex != null) {
-                    try {
-                        consumer.onError(ex);
-                    } catch (Exception onErrorEx) {
-                        ex.addSuppressed(onErrorEx);
-                    }
-                    future.completeExceptionally(ex);
-                } else {
-                    try {
-                        future.complete(consumer.onComplete());
-                    } catch (Exception e) {
-                        try {
-                            consumer.onError(e);
-                        } catch (Exception onErrorEx) {
-                            e.addSuppressed(onErrorEx);
-                        }
-                        future.completeExceptionally(e);
-                    }
-                }
-            });
-            return future;
-        }
-
-        synchronized void pushChunk(byte[] data, int offset, int length) {
-            final byte[] copy = Arrays.copyOfRange(data, offset, offset + length);
-            if (consumer != null) {
-                consumer.onChunk(copy, 0, copy.length);
-            } else {
-                buffer.add(copy);
-            }
-        }
-
-        void complete() {
-            synchronized (this) {
-                completed = true;
-            }
-            signal.complete(null);
-        }
-
-        void fail(Throwable t) {
-            synchronized (this) {
-                error = t;
-            }
-            signal.completeExceptionally(t);
-        }
-    }
 
     private static class StreamingResponseConsumer<T> implements AsyncResponseConsumer<T> {
         private final Request request;
         private final ResponseHandler<T> handler;
-        private final PushBodySink sink = new PushBodySink();
+        private final cn.maarlakes.common.http.PushBodySink sink = new cn.maarlakes.common.http.PushBodySink();
         private volatile CompletableFuture<T> handlerFuture;
 
         StreamingResponseConsumer(Request request, ResponseHandler<T> handler) {
@@ -613,13 +489,7 @@ public class ApacheAsyncHttpClient implements HttpClient {
         @Nonnull
         @Override
         public HttpHeaders getHeaders() {
-            final Map<String, List<String>> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            for (org.apache.hc.core5.http.Header header : this.response.getHeaders()) {
-                map.computeIfAbsent(header.getName(), k -> new ArrayList<>()).add(header.getValue());
-            }
-            final Map<String, Header> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            map.forEach((k, v) -> headers.put(k, new DefaultHeader(k, v)));
-            return new DefaultHttpHeaders(headers);
+            return toHttpHeaders(this.response);
         }
 
         @Nonnull
