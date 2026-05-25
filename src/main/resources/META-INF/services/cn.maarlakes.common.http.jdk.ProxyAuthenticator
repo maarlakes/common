@@ -1,0 +1,2 @@
+cn.maarlakes.common.http.jdk.BasicProxyAuthenticator
+cn.maarlakes.common.http.jdk.DigestProxyAuthenticator

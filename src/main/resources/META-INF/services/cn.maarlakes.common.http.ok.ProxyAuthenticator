@@ -1,0 +1,2 @@
+cn.maarlakes.common.http.ok.BasicProxyAuthenticator
+cn.maarlakes.common.http.ok.DigestProxyAuthenticator

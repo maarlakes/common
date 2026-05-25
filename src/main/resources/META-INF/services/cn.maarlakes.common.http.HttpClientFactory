@@ -1,0 +1,5 @@
+# Order: lower value = higher priority
+cn.maarlakes.common.http.apache.ApacheAsyncHttpClientFactory
+cn.maarlakes.common.http.ok.OkHttpClientFactory
+cn.maarlakes.common.http.apache.ApacheHttpClient4Factory
+cn.maarlakes.common.http.async.AsyncHttpClientFactory
