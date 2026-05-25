@@ -1,6 +1,5 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.io.Serializable;
 
@@ -13,12 +12,11 @@ public final class Weights<T> implements Serializable {
     private final T target;
     private final int weight;
 
-    public Weights(@Nonnull T target, int weight) {
+    public Weights(T target, int weight) {
         this.target = target;
         this.weight = weight;
     }
 
-    @Nonnull
     public T target() {
         return target;
     }

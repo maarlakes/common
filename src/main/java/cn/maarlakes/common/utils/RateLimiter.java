@@ -1,6 +1,5 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.time.Duration;
 
@@ -15,5 +14,5 @@ public interface RateLimiter {
 
     boolean tryAcquire();
 
-    boolean tryAcquire(@Nonnull Duration timeout);
+    boolean tryAcquire(Duration timeout);
 }

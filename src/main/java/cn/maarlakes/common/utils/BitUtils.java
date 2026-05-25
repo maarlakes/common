@@ -1,6 +1,5 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -186,6 +185,9 @@ public final class BitUtils {
         if (value == null) {
             throw new NullPointerException("value");
         }
+        if (startIndex < 0 || value.length < startIndex + 2) {
+            throw new ArrayIndexOutOfBoundsException("startIndex=" + startIndex + ", required length=" + (startIndex + 2) + ", actual length=" + value.length);
+        }
         return (short) (getRawByte(value[startIndex]) | (getRawByte(value[startIndex + 1]) << ONE_BYTE_BITS));
     }
 
@@ -197,6 +199,9 @@ public final class BitUtils {
         if (value == null) {
             throw new NullPointerException("value");
         }
+        if (startIndex < 0 || value.length < startIndex + 4) {
+            throw new ArrayIndexOutOfBoundsException("startIndex=" + startIndex + ", required length=" + (startIndex + 4) + ", actual length=" + value.length);
+        }
         return getRawByte(value[startIndex])
                 | (getRawByte(value[startIndex + 1]) << ONE_BYTE_BITS)
                 | (getRawByte(value[startIndex + 2]) << TWO_BYTE_BITS)
@@ -207,6 +212,9 @@ public final class BitUtils {
     public static long toLittleEndianLong(byte[] value, int startIndex) {
         if (value == null) {
             throw new NullPointerException("value");
+        }
+        if (startIndex < 0 || value.length < startIndex + 8) {
+            throw new ArrayIndexOutOfBoundsException("startIndex=" + startIndex + ", required length=" + (startIndex + 8) + ", actual length=" + value.length);
         }
         int num = getRawByte(value[startIndex])
                 | (getRawByte(value[startIndex + 1]) << ONE_BYTE_BITS)
@@ -232,6 +240,9 @@ public final class BitUtils {
         if (value == null) {
             throw new NullPointerException("value");
         }
+        if (startIndex < 0 || value.length < startIndex + 2) {
+            throw new ArrayIndexOutOfBoundsException("startIndex=" + startIndex + ", required length=" + (startIndex + 2) + ", actual length=" + value.length);
+        }
         return (short) ((getRawByte(value[startIndex]) << ONE_BYTE_BITS) | getRawByte(value[startIndex + 1]));
     }
 
@@ -243,6 +254,9 @@ public final class BitUtils {
         if (value == null) {
             throw new NullPointerException("value");
         }
+        if (startIndex < 0 || value.length < startIndex + 4) {
+            throw new ArrayIndexOutOfBoundsException("startIndex=" + startIndex + ", required length=" + (startIndex + 4) + ", actual length=" + value.length);
+        }
         return (getRawByte(value[startIndex]) << THREE_BYTE_BITS)
                 | (getRawByte(value[startIndex + 1]) << TWO_BYTE_BITS)
                 | (getRawByte(value[startIndex + 2]) << ONE_BYTE_BITS)
@@ -252,6 +266,9 @@ public final class BitUtils {
     public static long toBigEndianLong(byte[] value, int startIndex) {
         if (value == null) {
             throw new NullPointerException("value");
+        }
+        if (startIndex < 0 || value.length < startIndex + 8) {
+            throw new ArrayIndexOutOfBoundsException("startIndex=" + startIndex + ", required length=" + (startIndex + 8) + ", actual length=" + value.length);
         }
 
         int num3 = (getRawByte(value[startIndex]) << THREE_BYTE_BITS)
@@ -336,7 +353,7 @@ public final class BitUtils {
         return builder.toString();
     }
 
-    public static byte[] toBytes(@Nonnull CharSequence value) {
+    public static byte[] toBytes(CharSequence value) {
         final int length = value.length();
         final boolean even = isEven(length);
         final byte[] buffer = createBytes(length, even);
@@ -350,7 +367,7 @@ public final class BitUtils {
         return buffer;
     }
 
-    public static byte[] toBytes(@Nonnull CharSequence value, char separator) {
+    public static byte[] toBytes(CharSequence value, char separator) {
         final int length = (int) value.chars().filter(item -> item == separator).count() + 1;
         final byte[] buffer = new byte[length];
         int index = 0;

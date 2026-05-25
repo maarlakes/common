@@ -1,6 +1,6 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
+
 
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
@@ -29,12 +29,10 @@ public final class ClassUtils {
         PRIMITIVE_WRAPPER_MAP.put(Void.TYPE, Void.TYPE);
     }
 
-    @Nonnull
     public static Constructor<?> getMatchingAccessibleDeclaredConstructor(Class<?> clazz, Object... args) {
         return getMatchingAccessibleDeclaredConstructor(clazz, parameterTypes(args));
     }
 
-    @Nonnull
     public static Constructor<?> getMatchingAccessibleDeclaredConstructor(Class<?> clazz, Class<?>... parameterTypes) {
         Exception exception = null;
         try {
@@ -51,10 +49,10 @@ public final class ClassUtils {
         if (ctr != null) {
             return ctr;
         }
-        throw new IllegalStateException(exception);
+        throw new IllegalStateException("No matching constructor found in " + clazz.getName() + " for parameter types " + Arrays.toString(parameterTypes), exception);
     }
 
-    public static Class<?>[] parameterTypes(@Nonnull Object... args) {
+    public static Class<?>[] parameterTypes(Object... args) {
         final Class<?>[] types = new Class[args.length];
         for (int i = 0; i < args.length; i++) {
             final Object arg = args[i];
@@ -66,12 +64,12 @@ public final class ClassUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> Class<T> loadClass(@Nonnull String className) {
+    public static <T> Class<T> loadClass(String className) {
         return (Class<T>) loadClassOptional(className).orElse(null);
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> Optional<Class<T>> loadClassOptional(@Nonnull String className) {
+    public static <T> Optional<Class<T>> loadClassOptional(String className) {
         try {
             return Optional.of((Class<T>) Class.forName(className));
         } catch (Exception ignored) {
@@ -80,12 +78,12 @@ public final class ClassUtils {
     }
 
     @SuppressWarnings({"unchecked"})
-    public static <T> Class<T> loadClass(@Nonnull String className, boolean initialize, ClassLoader loader) {
+    public static <T> Class<T> loadClass(String className, boolean initialize, ClassLoader loader) {
         return (Class<T>) loadClassOptional(className, initialize, loader).orElse(null);
     }
 
     @SuppressWarnings({"unchecked"})
-    public static <T> Optional<Class<T>> loadClassOptional(@Nonnull String className, boolean initialize, ClassLoader loader) {
+    public static <T> Optional<Class<T>> loadClassOptional(String className, boolean initialize, ClassLoader loader) {
         try {
             return Optional.of((Class<T>) Class.forName(className, initialize, loader));
         } catch (Exception ignored) {
@@ -93,11 +91,11 @@ public final class ClassUtils {
         }
     }
 
-    public static boolean hasClass(@Nonnull String className) {
+    public static boolean hasClass(String className) {
         return hasClass(className, ClassUtils.class.getClassLoader());
     }
 
-    public static boolean hasClass(@Nonnull String className, @Nonnull ClassLoader loader) {
+    public static boolean hasClass(String className, ClassLoader loader) {
         try {
             Class.forName(className, false, loader);
             return true;

@@ -1,6 +1,5 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.util.concurrent.*;
 
@@ -24,9 +23,8 @@ public final class Futures {
         }
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
-    public static <T> CompletableFuture<T> toCompletableFuture(@Nonnull Future<T> future) {
+    public static <T> CompletableFuture<T> toCompletableFuture(Future<T> future) {
         if (future.isDone()) {
             return transformDoneFuture(future);
         }
@@ -38,12 +36,9 @@ public final class Futures {
         }
         final CompletableFuture<T> completableFuture = CompletableFuture.supplyAsync(() -> {
             try {
-                if (!future.isDone()) {
-                    awaitFuture(future);
-                }
                 return future.get();
             } catch (ExecutionException e) {
-                throw new IllegalStateException(e.getMessage(), e);
+                throw new IllegalStateException(e.getMessage(), e.getCause());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(e.getMessage(), e);
@@ -57,7 +52,7 @@ public final class Futures {
         return completableFuture;
     }
 
-    private static <T> void awaitFuture(@Nonnull Future<T> future) throws InterruptedException {
+    private static <T> void awaitFuture(Future<T> future) throws InterruptedException {
         ForkJoinPool.managedBlock(new ForkJoinPool.ManagedBlocker() {
             @Override
             public boolean block() throws InterruptedException {
@@ -65,7 +60,7 @@ public final class Futures {
                     try {
                         future.get();
                     } catch (ExecutionException e) {
-                        throw new RuntimeException(e);
+                        // 异常已在 get() 中抛出，这里不需要再次处理
                     }
                 }
                 return true;
@@ -78,7 +73,7 @@ public final class Futures {
         });
     }
 
-    private static <T> CompletableFuture<T> transformDoneFuture(@Nonnull Future<T> future) {
+    private static <T> CompletableFuture<T> transformDoneFuture(Future<T> future) {
         final CompletableFuture<T> completableFuture = new CompletableFuture<>();
         if (future.isCancelled()) {
             completableFuture.cancel(true);

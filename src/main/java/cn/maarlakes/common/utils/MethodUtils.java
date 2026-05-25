@@ -1,6 +1,5 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -15,11 +14,16 @@ public final class MethodUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> T invoke(@Nonnull Method method, Object object, Object... args) throws InvocationTargetException, IllegalAccessException {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            method.setAccessible(true);
-            return null;
-        });
+    public static <T> T invoke(Method method, Object object, Object... args) throws InvocationTargetException, IllegalAccessException {
+        if (method == null) {
+            throw new IllegalArgumentException("method is null");
+        }
+        if (!method.isAccessible()) {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                method.setAccessible(true);
+                return null;
+            });
+        }
         return (T) method.invoke(object, args);
     }
 }

@@ -1,8 +1,8 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Optional;
 
 /**
@@ -20,12 +20,10 @@ public final class Numbers {
         return convertToByteOptional(value, radix).orElse((byte) 0);
     }
 
-    @Nonnull
     public static Optional<Byte> convertToByteOptional(Object value) {
         return convertToByteOptional(value, 10);
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
     public static Optional<Byte> convertToByteOptional(Object value, int radix) {
         if (value instanceof Optional) {
@@ -37,7 +35,11 @@ public final class Numbers {
         if (value == null) {
             return Optional.empty();
         }
-        return Optional.of(Byte.parseByte(value.toString(), radix));
+        final String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(Byte.parseByte(str, radix));
     }
 
     public static short convertToShort(Object value) {
@@ -48,12 +50,10 @@ public final class Numbers {
         return convertToShortOptional(value, radix).orElse((short) 0);
     }
 
-    @Nonnull
     public static Optional<Short> convertToShortOptional(Object value) {
         return convertToShortOptional(value, 10);
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
     public static Optional<Short> convertToShortOptional(Object value, int radix) {
         if (value instanceof Optional) {
@@ -65,7 +65,11 @@ public final class Numbers {
         if (value == null) {
             return Optional.empty();
         }
-        return Optional.of(Short.parseShort(value.toString(), radix));
+        final String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(Short.parseShort(str, radix));
     }
 
     public static int convertToInteger(Object value) {
@@ -76,12 +80,10 @@ public final class Numbers {
         return convertToIntegerOptional(value, radix).orElse(0);
     }
 
-    @Nonnull
     public static Optional<Integer> convertToIntegerOptional(Object value) {
         return convertToIntegerOptional(value, 10);
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
     public static Optional<Integer> convertToIntegerOptional(Object value, int radix) {
         if (value instanceof Optional) {
@@ -93,7 +95,11 @@ public final class Numbers {
         if (value == null) {
             return Optional.empty();
         }
-        return Optional.of(Integer.parseInt(value.toString(), radix));
+        final String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(Integer.parseInt(str, radix));
     }
 
     public static long convertToLong(Object value) {
@@ -104,12 +110,10 @@ public final class Numbers {
         return convertToLongOptional(value, radix).orElse(0L);
     }
 
-    @Nonnull
     public static Optional<Long> convertToLongOptional(Object value) {
         return convertToLongOptional(value, 10);
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
     public static Optional<Long> convertToLongOptional(Object value, int radix) {
         if (value instanceof Optional) {
@@ -121,14 +125,17 @@ public final class Numbers {
         if (value == null) {
             return Optional.empty();
         }
-        return Optional.of(Long.parseLong(value.toString(), radix));
+        final String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(Long.parseLong(str, radix));
     }
 
     public static float convertToFloat(Object value) {
         return convertToFloatOptional(value).orElse(0F);
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
     public static Optional<Float> convertToFloatOptional(Object value) {
         if (value instanceof Optional) {
@@ -140,14 +147,17 @@ public final class Numbers {
         if (value == null) {
             return Optional.empty();
         }
-        return Optional.of(Float.parseFloat(value.toString()));
+        final String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(Float.parseFloat(str));
     }
 
     public static double convertToDouble(Object value) {
         return convertToDoubleOptional(value).orElse(0D);
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
     public static Optional<Double> convertToDoubleOptional(Object value) {
         if (value instanceof Optional) {
@@ -159,18 +169,27 @@ public final class Numbers {
         if (value == null) {
             return Optional.empty();
         }
-        return Optional.of(Double.parseDouble(value.toString()));
+        final String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(Double.parseDouble(str));
     }
 
     public static BigDecimal convertToBigDecimal(Object value) {
         return convertToBigDecimalOptional(value).orElse(BigDecimal.ZERO);
     }
 
-    @Nonnull
     @SuppressWarnings("unchecked")
     public static Optional<BigDecimal> convertToBigDecimalOptional(Object value) {
         if (value instanceof Optional) {
             return convertToBigDecimalOptional(((Optional<Object>) value).orElse(null));
+        }
+        if (value instanceof BigDecimal) {
+            return Optional.of((BigDecimal) value);
+        }
+        if (value instanceof BigInteger) {
+            return Optional.of(new BigDecimal((BigInteger) value));
         }
         if (value instanceof Double || value instanceof Float) {
             return Optional.of(BigDecimal.valueOf(((Number) value).doubleValue()));
@@ -179,6 +198,10 @@ public final class Numbers {
         if (value == null) {
             return Optional.empty();
         }
-        return Optional.of(new BigDecimal(value.toString()));
+        final String str = value.toString().trim();
+        if (str.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new BigDecimal(str));
     }
 }

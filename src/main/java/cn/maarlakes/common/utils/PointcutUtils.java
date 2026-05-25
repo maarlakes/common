@@ -16,12 +16,15 @@ public final class PointcutUtils {
 
     @SafeVarargs
     public static Pointcut forAnnotations(Class<? extends Annotation>... annotations) {
+        if (annotations == null || annotations.length == 0) {
+            return Pointcut.TRUE;
+        }
         ComposablePointcut pointcut = null;
         for (Class<? extends Annotation> annotation : annotations) {
             if (pointcut == null) {
                 pointcut = new ComposablePointcut(classOrMethod(annotation));
             } else {
-                pointcut.union(classOrMethod(annotation));
+                pointcut = pointcut.union(classOrMethod(annotation));
             }
         }
 

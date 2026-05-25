@@ -1,14 +1,12 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.*;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Enumeration;
 
@@ -19,22 +17,23 @@ public final class RsaUtils {
     private RsaUtils() {
     }
 
-    @Nonnull
-    public static PrivateKey loadPrivateKey(@Nonnull File privateKeyFile, String keyPwd) throws Exception {
+    public static PrivateKey loadPrivateKey(File privateKeyFile, String keyPwd) throws Exception {
         try (InputStream input = Files.newInputStream(privateKeyFile.toPath())) {
             return loadPrivateKey(input, keyPwd);
         }
     }
 
-    @Nonnull
     public static PrivateKey loadPrivateKey(InputStream privateKeyData, String keyPwd) throws Exception {
         final KeyStore keyStore = KeyStore.getInstance("PKCS12");
-        final char[] pwdChars = keyPwd.toCharArray();
+        final char[] pwdChars = keyPwd == null ? new char[0] : keyPwd.toCharArray();
         keyStore.load(privateKeyData, pwdChars);
         String keyAlias = null;
         final Enumeration<String> aliases = keyStore.aliases();
         if (aliases.hasMoreElements()) {
             keyAlias = aliases.nextElement();
+        }
+        if (keyAlias == null) {
+            throw new IllegalArgumentException("No alias found in keystore");
         }
 
         final Key key = keyStore.getKey(keyAlias, pwdChars);
@@ -52,21 +51,18 @@ public final class RsaUtils {
 
     public static PublicKey loadPublicKey(InputStream publicKeyData) throws Exception {
         final byte[] buffer = StreamUtils.readAllBytes(publicKeyData);
-        final CertificateFactory certificateFactory = CertificateFactory.getInstance("X509");
-
-        final BufferedReader br = new BufferedReader(new StringReader(new String(buffer)));
-        String line = null;
+        final BufferedReader br = new BufferedReader(new StringReader(new String(buffer, StandardCharsets.UTF_8)));
         final StringBuilder builder = new StringBuilder();
+        String line;
         while ((line = br.readLine()) != null) {
             if (!line.startsWith("-")) {
                 builder.append(line);
             }
         }
 
-        final Certificate certificate = certificateFactory.generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(builder.toString())));
-        final PublicKey publicKey = certificate.getPublicKey();
-        final X509EncodedKeySpec x509EncodedKeySpec = new X509EncodedKeySpec(publicKey.getEncoded());
-        final KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        return keyFactory.generatePublic(x509EncodedKeySpec);
+        final CertificateFactory certificateFactory = CertificateFactory.getInstance("X509");
+        return certificateFactory.generateCertificate(
+                new ByteArrayInputStream(Base64.getDecoder().decode(builder.toString()))
+        ).getPublicKey();
     }
 }

@@ -1,9 +1,11 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -11,6 +13,8 @@ import java.util.*;
  */
 @SuppressWarnings("AlibabaLowerCamelCaseVariableNaming")
 public final class IpUtils {
+    private static final Logger log = LoggerFactory.getLogger(IpUtils.class);
+
     private IpUtils() {
     }
 
@@ -23,6 +27,13 @@ public final class IpUtils {
     private static final Lazy<Inet6Address> LOCAL_ADDRESS6 = Lazy.of(IpUtils::getLocalAddress6_0);
 
     public static InetAddress getPublicAddress() {
+        return getPublicAddress(false);
+    }
+
+    public static InetAddress getPublicAddress(boolean realtime) {
+        if (realtime) {
+            return getPublicAddress0();
+        }
         return PUBLIC_ADDRESS.get();
     }
 
@@ -59,12 +70,10 @@ public final class IpUtils {
         return LOCAL_ADDRESS6.get();
     }
 
-    @Nonnull
     public static List<? extends InetAddress> getAllLocalAddress() {
         return getAllLocalAddress(false);
     }
 
-    @Nonnull
     public static List<? extends InetAddress> getAllLocalAddress(boolean realtime) {
         if (realtime) {
             return getAllLocalAddress0();
@@ -72,12 +81,10 @@ public final class IpUtils {
         return ALL_LOCAL_ADDRESS.get();
     }
 
-    @Nonnull
     public static List<? extends Inet4Address> getAllLocalAddress4() {
         return getAllLocalAddress4(false);
     }
 
-    @Nonnull
     public static List<? extends Inet4Address> getAllLocalAddress4(boolean realtime) {
         if (realtime) {
             return getAllLocalAddress4_0();
@@ -85,12 +92,10 @@ public final class IpUtils {
         return ALL_LOCAL_ADDRESS4.get();
     }
 
-    @Nonnull
     public static List<? extends Inet6Address> getAllLocalAddress6() {
         return getAllLocalAddress6(false);
     }
 
-    @Nonnull
     public static List<? extends Inet6Address> getAllLocalAddress6(boolean realtime) {
         if (realtime) {
             return getAllLocalAddress6_0();
@@ -155,17 +160,16 @@ public final class IpUtils {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("Failed to get local network addresses", e);
         }
         return map;
     }
 
-    @Nonnull
     private static List<? extends InetAddress> getAllLocalAddress0() {
         return new ArrayList<>(getAllLocalAddressAndBroadcast().keySet());
     }
 
-    @Nonnull
     private static List<? extends Inet4Address> getAllLocalAddress4_0() {
         final List<Inet4Address> list = new ArrayList<>();
         for (InetAddress address : getAllLocalAddressAndBroadcast().keySet()) {
@@ -176,7 +180,6 @@ public final class IpUtils {
         return list;
     }
 
-    @Nonnull
     private static List<? extends Inet6Address> getAllLocalAddress6_0() {
         final List<Inet6Address> list = new ArrayList<>();
         for (InetAddress address : getAllLocalAddressAndBroadcast().keySet()) {
@@ -191,11 +194,14 @@ public final class IpUtils {
         try {
             final URL url = new URL("https://ipinfo.io/ip");
             final URLConnection connection = url.openConnection();
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
             connection.connect();
             try (InputStream in = connection.getInputStream()) {
-                return InetAddress.getByName(new String(StreamUtils.readAllBytes(in)));
+                return InetAddress.getByName(new String(StreamUtils.readAllBytes(in), StandardCharsets.UTF_8).trim());
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("Failed to get public address", e);
         }
         return null;
     }

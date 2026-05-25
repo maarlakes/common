@@ -1,6 +1,5 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.util.concurrent.Executor;
 
@@ -11,11 +10,10 @@ public class SharedExecutorFactory implements ExecutorFactory {
 
     private final Executor executor;
 
-    public SharedExecutorFactory(@Nonnull Executor executor) {
+    public SharedExecutorFactory(Executor executor) {
         this.executor = executor;
     }
 
-    @Nonnull
     @Override
     public Executor createExecutor() {
         return this.executor;

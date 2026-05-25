@@ -15,8 +15,8 @@ public class ThreadPoolConfig implements Serializable {
     private int maximumSize = Runtime.getRuntime().availableProcessors() * 2;
     private Duration keepAliveTime = Duration.ofMinutes(1L);
     private String threadNamePrefix = "thread-pool-";
-    private BlockingQueue<Runnable> queue;
-    private RejectedExecutionHandler rejectedHandler;
+    private transient BlockingQueue<Runnable> queue;
+    private transient RejectedExecutionHandler rejectedHandler;
 
     public int getCoreSize() {
         return coreSize;

@@ -22,7 +22,6 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     public static final long UNIT_RATIO = 1024;
     private static final BigDecimal TWO = BigDecimal.valueOf(2L);
     private final BigDecimal bytes;
-    private final NumberFormat baseFormat;
 
     public static final DataSize ZERO = new DataSize(BigDecimal.ZERO);
 //    public static final DataSize BYTE = DataSize.ofBytes(1L);
@@ -38,8 +37,6 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
 
     private DataSize(@Nonnull BigDecimal bytes) {
         this.bytes = bytes;
-        this.baseFormat = new DecimalFormat();
-        this.baseFormat.setGroupingUsed(false);
     }
 
     @Override
@@ -426,12 +423,12 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
     @Override
     @JsonValue
     public String toString() {
-        return this.toString((NumberFormat) this.baseFormat.clone());
+        return this.toString(createFormat());
     }
 
     @Nonnull
     public String toString(@Nonnull Unit unit) {
-        return this.toString((NumberFormat) this.baseFormat.clone(), unit);
+        return this.toString(createFormat(), unit);
     }
 
     @Nonnull
@@ -638,6 +635,12 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
         }
     }
 
+    private static NumberFormat createFormat() {
+        NumberFormat format = new DecimalFormat();
+        format.setGroupingUsed(false);
+        return format;
+    }
+
     @Nonnull
     private static Unit valueOfUnit(String unitName) {
         if (unitName == null || unitName.isEmpty()) {
@@ -650,7 +653,7 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
         return Unit.valueOf(unitName);
     }
 
-    private static String getUnitName(@Nonnull String text) {
+    private static String getUnitName(String text) {
         final char[] array = text.toCharArray();
         final StringBuilder builder = new StringBuilder();
         for (int i = array.length - 1; i >= 0; i--) {
@@ -658,8 +661,11 @@ public final class DataSize implements Comparable<DataSize>, Serializable {
             if (c == ' ' && builder.length() > 0) {
                 break;
             }
+
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
                 builder.insert(0, c);
+            } else {
+                break;
             }
         }
         return builder.toString();

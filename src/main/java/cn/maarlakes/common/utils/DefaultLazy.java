@@ -1,6 +1,5 @@
 package cn.maarlakes.common.utils;
 
-import jakarta.annotation.Nonnull;
 
 import java.util.function.Supplier;
 
@@ -10,24 +9,26 @@ import java.util.function.Supplier;
 class DefaultLazy<T> implements Lazy<T> {
 
     private final Supplier<T> factory;
-    private volatile T value = null;
+    private T value = null;
+    private volatile boolean isCreated = false;
     private final Object lock = new Object();
 
-    DefaultLazy(@Nonnull Supplier<T> factory) {
+    DefaultLazy(Supplier<T> factory) {
         this.factory = factory;
     }
 
     @Override
     public boolean isCreated() {
-        return this.value != null;
+        return this.isCreated;
     }
 
     @Override
     public T apply() throws Exception {
-        if (this.value == null) {
+        if (!this.isCreated) {
             synchronized (this.lock) {
-                if (this.value == null) {
+                if (!this.isCreated) {
                     this.value = this.factory.get();
+                    this.isCreated = true;
                 }
             }
         }
