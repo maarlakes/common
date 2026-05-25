@@ -68,6 +68,28 @@ public interface Request {
     }
 
     /**
+     * 基于已有请求创建构建器，复制全部字段（方法、URI、头部、Cookie、字符编码、
+     * 查询参数、表单参数、请求体）到新的 Builder 中，便于修改部分字段后重新构建。
+     *
+     * <p>Headers 从原请求的 {@link HttpHeaders} 遍历复制；RequestBody 直接引用原对象
+     * （不可变，无需深拷）。复制后的 Builder 可自由修改任意字段，不影响原请求。
+     *
+     * <p>用法示例：
+     * <pre>
+     *   Request copy = Request.Builder.from(original)
+     *       .uri(URI.create("https://other.example.com"))
+     *       .setHeader("Authorization", "Bearer new-token")
+     *       .build();
+     * </pre>
+     *
+     * @param request 要复制的原始请求，不允许为 null
+     * @return 预填充了原始请求所有字段的新 Builder
+     */
+//    static Builder from(Request request) {
+//        return new DefaultRequestBuilder(request);
+//    }
+
+    /**
      * 请求构建器，提供流式 API 构建完整的 HTTP 请求。
      *
      * <p>便捷方法（{@code get}、{@code post}、{@code json} 等）组合了

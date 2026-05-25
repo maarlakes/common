@@ -85,8 +85,8 @@ public class OkAsyncHttpClient implements HttpClient {
     /**
      * 使用外部提供的 OkHttpClient 和 SSL 上下文构造。
      *
-     * @param client      OkHttpClient 实例，不允许为 null
-     * @param sslContext  SSL 上下文，用于覆盖默认 SSLSocketFactory，可为 null
+     * @param client     OkHttpClient 实例，不允许为 null
+     * @param sslContext SSL 上下文，用于覆盖默认 SSLSocketFactory，可为 null
      */
     public OkAsyncHttpClient(@Nonnull OkHttpClient client, SSLContext sslContext) {
         this(client, sslContext, null);
@@ -340,8 +340,13 @@ public class OkAsyncHttpClient implements HttpClient {
                 if (trustManager != null) {
                     builder.sslSocketFactory(this.sslContext.getSocketFactory(), trustManager);
                 }
-            } catch (Exception ignored) {
-                // 回退到弃用 API，总比没有 SSL 好
+            } catch (Exception e) {
+                // TrustManagerFactory 初始化失败（如无默认 KeyStore、安全提供者不可用等），
+                // 回退到 OkHttp 4.x 弃用的单参数 sslSocketFactory(SSLSocketFactory)。
+                // 该 API 在 OkHttp 5.x 已移除，但在 4.x 仍可正常工作，虽无法校验证书链的信任锚，
+                // 但总比完全没有 SSL 配置要好。生产环境应确保 TrustManagerFactory 可用。
+                log.warn("TrustManagerFactory 初始化失败, 回退到弃用的单参数 sslSocketFactory: {}", e.getMessage(), e);
+                //noinspection deprecation
                 builder.sslSocketFactory(this.sslContext.getSocketFactory());
             }
         }

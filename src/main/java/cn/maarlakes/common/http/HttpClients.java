@@ -2,7 +2,6 @@ package cn.maarlakes.common.http;
 
 import cn.maarlakes.common.http.jdk.JdkHttpClient;
 import cn.maarlakes.common.spi.SpiServiceLoader;
-import jakarta.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,72 +56,143 @@ public final class HttpClients {
     /**
      * 使用默认配置发送请求。
      */
-    @Nonnull
-    public static CompletableFuture<Response> execute(@Nonnull Request request) {
+    public static CompletableFuture<Response> execute(Request request) {
         return doExecute(client -> client.execute(request));
     }
 
-    @Nonnull
-    public static CompletableFuture<Response> execute(@Nonnull Request request, @Nonnull HttpFilter... filters) {
+    /**
+     * 使用默认配置和指定过滤器发送请求。
+     *
+     * <p>过滤器通过 {@link FilterableHttpClient} 装饰器包装底层客户端，形成责任链。
+     * 过滤器按数组顺序依次拦截请求，链尾委托给全局共享的底层客户端执行。
+     *
+     * @param request HTTP 请求
+     * @param filters 请求/响应拦截器，按数组顺序执行
+     * @return 异步响应
+     */
+    public static CompletableFuture<Response> execute(Request request, HttpFilter... filters) {
         return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request));
     }
 
-    @Nonnull
-    public static CompletableFuture<Response> execute(@Nonnull Request request, @Nonnull List<HttpFilter> filters) {
+    /**
+     * 使用默认配置和指定过滤器列表发送请求。
+     *
+     * <p>与 {@link #execute(Request, HttpFilter...)} 功能相同，接受 {@link List} 参数，
+     * 适合过滤器数量动态或来自集合操作的场景。
+     *
+     * @param request HTTP 请求
+     * @param filters 请求/响应拦截器列表，按列表顺序执行
+     * @return 异步响应
+     */
+    public static CompletableFuture<Response> execute(Request request, List<HttpFilter> filters) {
         return doExecute(client -> new FilterableHttpClient(client, filters).execute(request));
     }
 
     /**
      * 使用指定配置发送请求。
      */
-    @Nonnull
-    public static CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config) {
+    public static CompletableFuture<Response> execute(Request request, RequestConfig config) {
         return doExecute(client -> client.execute(request, config));
     }
 
-    @Nonnull
-    public static CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config, @Nonnull HttpFilter... filters) {
+    /**
+     * 使用指定配置和过滤器发送请求。
+     *
+     * <p>请求配置（超时、代理等）仅在本次请求生效，不影响全局客户端的默认配置。
+     * 过滤器按数组顺序依次拦截请求。
+     *
+     * @param request HTTP 请求
+     * @param config  请求级配置（超时、代理等），可为 null 以使用默认配置
+     * @param filters 请求/响应拦截器，按数组顺序执行
+     * @return 异步响应
+     */
+    public static CompletableFuture<Response> execute(Request request, RequestConfig config, HttpFilter... filters) {
         return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request, config));
     }
 
-    @Nonnull
-    public static CompletableFuture<Response> execute(@Nonnull Request request, RequestConfig config, @Nonnull List<HttpFilter> filters) {
+    /**
+     * 使用指定配置和过滤器列表发送请求。
+     *
+     * @param request HTTP 请求
+     * @param config  请求级配置，可为 null
+     * @param filters 请求/响应拦截器列表，按列表顺序执行
+     * @return 异步响应
+     */
+    public static CompletableFuture<Response> execute(Request request, RequestConfig config, List<HttpFilter> filters) {
         return doExecute(client -> new FilterableHttpClient(client, filters).execute(request, config));
     }
 
     /**
      * 使用指定配置发送请求，并通过 handler 流式处理响应体。
      */
-    @Nonnull
-    public static <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler) {
+    public static <T> CompletableFuture<T> execute(Request request, RequestConfig config, ResponseHandler<T> handler) {
         return doExecute(client -> client.execute(request, config, handler));
     }
 
-    @Nonnull
-    public static <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler, @Nonnull HttpFilter... filters) {
+    /**
+     * 使用指定配置、过滤器和流式处理器发送请求。
+     *
+     * <p>响应到达后不缓冲到内存，直接将响应流交给 {@code handler} 处理，
+     * 适合大文件下载等场景。过滤器在流式处理器之前执行请求拦截。
+     *
+     * @param request HTTP 请求
+     * @param config  请求级配置，可为 null
+     * @param handler 流式响应处理器，负责消费响应体
+     * @param filters 请求/响应拦截器，按数组顺序执行
+     * @param <T>     handler 返回的结果类型
+     * @return 异步处理结果
+     */
+    public static <T> CompletableFuture<T> execute(Request request, RequestConfig config, ResponseHandler<T> handler, HttpFilter... filters) {
         return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request, config, handler));
     }
 
-    @Nonnull
-    public static <T> CompletableFuture<T> execute(@Nonnull Request request, RequestConfig config, @Nonnull ResponseHandler<T> handler, @Nonnull List<HttpFilter> filters) {
+    /**
+     * 使用指定配置、过滤器列表和流式处理器发送请求。
+     *
+     * @param request HTTP 请求
+     * @param config  请求级配置，可为 null
+     * @param handler 流式响应处理器
+     * @param filters 请求/响应拦截器列表
+     * @param <T>     handler 返回的结果类型
+     * @return 异步处理结果
+     */
+    public static <T> CompletableFuture<T> execute(Request request, RequestConfig config, ResponseHandler<T> handler, List<HttpFilter> filters) {
         return doExecute(client -> new FilterableHttpClient(client, filters).execute(request, config, handler));
     }
 
     /**
      * 使用默认配置发送请求，并通过 handler 流式处理响应体。
      */
-    @Nonnull
-    public static <T> CompletableFuture<T> execute(@Nonnull Request request, @Nonnull ResponseHandler<T> handler) {
+    public static <T> CompletableFuture<T> execute(Request request, ResponseHandler<T> handler) {
         return doExecute(client -> client.execute(request, null, handler));
     }
 
-    @Nonnull
-    public static <T> CompletableFuture<T> execute(@Nonnull Request request, @Nonnull ResponseHandler<T> handler, @Nonnull HttpFilter... filters) {
+    /**
+     * 使用默认配置、过滤器和流式处理器发送请求。
+     *
+     * <p>不指定 {@link RequestConfig}，使用底层客户端的默认配置。
+     * 响应体通过 {@code handler} 流式消费，不缓冲到内存。
+     *
+     * @param request HTTP 请求
+     * @param handler 流式响应处理器
+     * @param filters 请求/响应拦截器，按数组顺序执行
+     * @param <T>     handler 返回的结果类型
+     * @return 异步处理结果
+     */
+    public static <T> CompletableFuture<T> execute(Request request, ResponseHandler<T> handler, HttpFilter... filters) {
         return doExecute(client -> new FilterableHttpClient(client, Arrays.stream(filters).collect(Collectors.toList())).execute(request, null, handler));
     }
 
-    @Nonnull
-    public static <T> CompletableFuture<T> execute(@Nonnull Request request, @Nonnull ResponseHandler<T> handler, @Nonnull List<HttpFilter> filters) {
+    /**
+     * 使用默认配置、过滤器列表和流式处理器发送请求。
+     *
+     * @param request HTTP 请求
+     * @param handler 流式响应处理器
+     * @param filters 请求/响应拦截器列表
+     * @param <T>     handler 返回的结果类型
+     * @return 异步处理结果
+     */
+    public static <T> CompletableFuture<T> execute(Request request, ResponseHandler<T> handler, List<HttpFilter> filters) {
         return doExecute(client -> new FilterableHttpClient(client, filters).execute(request, null, handler));
     }
 
@@ -179,7 +249,6 @@ public final class HttpClients {
      * </ul>
      * 若所有工厂均失败，回退到 {@link JdkHttpClient}。
      */
-    @Nonnull
     private static HttpClient getDefault() {
         synchronized (LOCK) {
             if (CLIENT == null) {
@@ -187,7 +256,7 @@ public final class HttpClients {
                     final HttpClientConfig config = HttpClientConfig.builder()
                             .executor(new ForkJoinPool())
                             .build();
-                    for (HttpClientFactory factory : SpiServiceLoader.loadShared(HttpClientFactory.class)) {
+                    for (HttpClientFactory factory : SpiServiceLoader.loadShared(HttpClientFactory.class, HttpClients.class.getClassLoader())) {
                         if (EXCLUDES.contains(factory.getClass())) {
                             log.trace("跳过已排除的工厂: {}", factory.getClass().getName());
                             continue;
