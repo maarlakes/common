@@ -31,11 +31,22 @@ public class DefaultEventListenerRegistrar implements EventListenerRegistrar {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultEventListenerRegistrar.class);
 
+    /** 事件分发器 */
     private final EventDispatcher dispatcher;
+    /** 监听器处理器工厂，用于获取所有可用的 {@link EventListenerHandler} */
     private final EventListenerHandlerFactory listenerHandlersFactory;
+    /** 事件发布器工厂，用于创建 {@link EventPublisher} */
     private final EventPublisherFactory eventPublisherFactory;
+    /** 已注册的监听器到其调用器列表的映射 */
     private final ConcurrentMap<Object, List<EventInvoker>> invokers = new ConcurrentHashMap<>();
 
+    /**
+     * 创建事件监听器注册器。
+     *
+     * @param dispatcher            事件分发器
+     * @param listenerHandlersFactory 监听器处理器工厂
+     * @param eventPublisherFactory 事件发布器工厂
+     */
     public DefaultEventListenerRegistrar(@Nonnull EventDispatcher dispatcher, @Nonnull EventListenerHandlerFactory listenerHandlersFactory, @Nonnull EventPublisherFactory eventPublisherFactory) {
         this.dispatcher = dispatcher;
         this.listenerHandlersFactory = listenerHandlersFactory;
@@ -46,14 +57,14 @@ public class DefaultEventListenerRegistrar implements EventListenerRegistrar {
     public <L> void register(@Nonnull L listener) {
         final List<EventInvoker> listenerInvokers = getListenerInvoker(listener);
         this.invokers.put(listener, listenerInvokers);
-        log.info("Registered event listener: {} with {} invoker(s)", listener.getClass().getName(), listenerInvokers.size());
+        log.info("已注册事件监听器: {}, 包含 {} 个调用器", listener.getClass().getName(), listenerInvokers.size());
     }
 
     @Override
     public <L> void unregister(@Nonnull L listener) {
         final List<EventInvoker> removed = this.invokers.remove(Objects.requireNonNull(listener));
         if (removed != null) {
-            log.info("Unregistered event listener: {} ({} invoker(s))", listener.getClass().getName(), removed.size());
+            log.info("已注销事件监听器: {} ({} 个调用器)", listener.getClass().getName(), removed.size());
         }
     }
 
@@ -61,15 +72,32 @@ public class DefaultEventListenerRegistrar implements EventListenerRegistrar {
     public void unregisterAll() {
         final int count = this.invokers.size();
         this.invokers.clear();
-        log.info("Unregistered all event listeners ({} listener(s))", count);
+        log.info("已注销所有事件监听器 ({} 个监听器)", count);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>每次调用都会创建新的 {@link EventPublisher} 实例，内部包含当前所有已注册监听器的调用器快照。
+     * 若需复用发布器，调用方应自行持有返回的实例。
+     */
     @Nonnull
     @Override
     public EventPublisher publisher() {
         return this.eventPublisherFactory.createPublisher(this.dispatcher, this.invokers.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
     }
 
+    /**
+     * 从监听器对象中提取所有事件调用器。
+     *
+     * <p>通过 {@link EventListenerHandlerFactory} 获取所有处理器，逐个提取调用器。
+     * 如果没有可用的处理器或监听器中未发现任何监听方法，将抛出 {@link IllegalArgumentException}。
+     *
+     * @param listener  监听器对象
+     * @param <L>       监听器类型
+     * @return 不可变的调用器列表
+     * @throws IllegalArgumentException 没有可用的处理器或监听器中无监听方法
+     */
     private <L> List<EventInvoker> getListenerInvoker(L listener) {
         final List<EventListenerHandler> listenerHandlers = this.listenerHandlersFactory.getListenerHandlers();
         if (listenerHandlers.isEmpty()) {

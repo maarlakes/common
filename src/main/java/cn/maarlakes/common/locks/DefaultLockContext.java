@@ -5,7 +5,13 @@ import jakarta.annotation.Nonnull;
 import java.util.Objects;
 
 /**
+ * {@link LockContext} 的默认实现。
+ *
+ * <p>此类为包私有，外部代码应通过 {@link LockContext#create(String)} 等工厂方法创建实例，
+ * 而非直接构造。不可变类，线程安全。</p>
+ *
  * @author linjpxc
+ * @see LockContext
  */
 final class DefaultLockContext implements LockContext {
 
@@ -47,6 +53,7 @@ final class DefaultLockContext implements LockContext {
         if (this == o) {
             return true;
         }
+        // 允许与任意 LockContext 实现进行相等性比较，而非仅限于 DefaultLockContext
         if (!(o instanceof LockContext)) {
             return false;
         }

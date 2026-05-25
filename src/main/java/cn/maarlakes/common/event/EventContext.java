@@ -8,7 +8,7 @@ import java.io.Serializable;
  * 事件上下文接口，提供键值对属性存取能力。
  *
  * <p><b>设计意图</b>
- * <p>这是一个提供给使用者的便携类（mixin/混入接口）。当业务系统定义自己的事件类时，
+ * <p>这是一个提供给使用者的混入接口（mixin）。当业务系统定义自己的事件类时，
  * 可以直接让该事件类实现此接口（或继承 {@link DefaultEventContext}），从而在事件对象
  * 内部携带上下文属性（如追踪 ID、租户信息、用户会话等），随事件一起流转。
  *
@@ -21,7 +21,23 @@ import java.io.Serializable;
  */
 public interface EventContext extends Serializable {
 
+    /**
+     * 设置上下文属性。
+     *
+     * @param <K>   属性键的类型
+     * @param <V>   属性值的类型
+     * @param key   属性键，不能为 null
+     * @param value 属性值，为 null 时由实现决定是否移除该键
+     */
     <K, V> void setAttribute(@Nonnull K key, V value);
 
+    /**
+     * 获取上下文属性。
+     *
+     * @param <K> 属性键的类型
+     * @param <V> 属性值的类型
+     * @param key 属性键，不能为 null
+     * @return 对应的属性值，不存在时返回 null
+     */
     <K, V> V getAttribute(@Nonnull K key);
 }
