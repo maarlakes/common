@@ -18,7 +18,6 @@ import java.util.function.Predicate;
  * <p>默认使用 {@link LinkedBlockingQueue}（无界队列）和 {@link ForkJoinPool#commonPool()} 作为执行器。
  *
  * @param <T> 消息类型
- * @see cn.maarlakes.common.queue.redis.RedissonMessageQueue
  * @author linjpxc
  */
 public class MemoryMessageQueue<T> extends AbstractBlockingQueue<T> {

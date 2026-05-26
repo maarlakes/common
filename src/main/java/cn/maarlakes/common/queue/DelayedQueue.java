@@ -19,7 +19,6 @@ import java.util.concurrent.CompletionStage;
  *
  * @param <T> 消息类型
  * @see MemoryDelayQueue
- * @see cn.maarlakes.common.queue.redis.RedissonDelayQueue
  * @author linjpxc
  */
 public interface DelayedQueue<T> extends MessageQueue<T> {

@@ -12,7 +12,7 @@ import java.util.concurrent.CompletableFuture;
  * 适用于大文件下载、流式解析等场景。
  *
  * <p>实现方接收响应元数据 {@link HttpResponse} 和流式响应体 {@link BodySink}，
- * 通过 {@link BodySink#consume} 注册 {@link cn.maarlakes.common.http.body.BodyConsumer}
+ * 通过 {@link BodySink#consume} 注册 {@link BodyConsumer}
  * 来逐块消费数据。返回的 {@link CompletableFuture} 完成时表示处理结束。
  *
  * <p>标记为 {@link FunctionalInterface}，可以使用 Lambda 表达式。

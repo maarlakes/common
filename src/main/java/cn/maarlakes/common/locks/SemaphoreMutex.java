@@ -19,9 +19,9 @@ import java.util.concurrent.TimeUnit;
  * </ul>
  *
  * <h3>设计选择</h3>
- * <p>选择 {@link Semaphore} 而非 {@link ReentrantLock} 是因为异步编程模型（如
+ * <p>选择 {@link Semaphore} 而非 {@link java.util.concurrent.locks.ReentrantLock} 是因为异步编程模型（如
  * {@link java.util.concurrent.CompletionStage}）中，加锁和解锁通常在不同线程执行，
- * 而 {@link ReentrantLock} 要求同一线程解锁。</p>
+ * 而 {@link java.util.concurrent.locks.ReentrantLock} 要求同一线程解锁。</p>
  *
  * @author linjpxc
  * @see Mutex

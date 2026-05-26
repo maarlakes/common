@@ -23,19 +23,19 @@ import java.lang.annotation.*;
  * 在异步操作完成后释放锁。其他返回类型使用同步锁，方法执行完毕后立即释放。</p>
  *
  * <h3>使用示例</h3>
- * <pre>{@code
+ * <pre><code>
  * // 默认 key（类名.方法名）
- * @SyncLock
+ * &#64;SyncLock
  * public void process() { ... }
  *
  * // SpEL 表达式 key
- * @SyncLock("#orderId")
+ * &#64;SyncLock("#orderId")
  * public void processOrder(String orderId) { ... }
  *
  * // 公平锁 + 超时等待 + 自动释放
- * @SyncLock(value = "#userId", fair = true, waitTime = 5000, leaseTime = 30000)
+ * &#64;SyncLock(value = "#userId", fair = true, waitTime = 5000, leaseTime = 30000)
  * public void updateUser(String userId) { ... }
- * }</pre>
+ * </code></pre>
  *
  * <h3>组合注解</h3>
  * <p>此注解的 {@code @Target} 包含 {@link ElementType#ANNOTATION_TYPE}，

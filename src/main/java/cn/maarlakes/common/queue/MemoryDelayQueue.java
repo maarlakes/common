@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
  * 确保 {@link DelayQueue#remove} 等操作能按消息值匹配。
  *
  * @param <T> 消息类型
- * @see cn.maarlakes.common.queue.redis.RedissonDelayQueue
  * @author linjpxc
  */
 public class MemoryDelayQueue<T> extends AbstractBlockingQueue<T> implements DelayedQueue<T> {

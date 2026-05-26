@@ -14,7 +14,7 @@ import java.util.function.Predicate;
  * <h3>消费模型</h3>
  * <ul>
  *   <li><b>推模式</b>：通过 {@link #addListener} 注册 {@link QueueListener}，队列内部启动守护线程自动获取消息并分发。
- *       首个监听器注册时消费线程启动，消息通过 {@link Executor} 异步分发给所有监听器。</li>
+ *       首个监听器注册时消费线程启动，消息通过 {@link java.util.concurrent.Executor} 异步分发给所有监听器。</li>
  *   <li><b>拉模式</b>：通过 {@link #poll} / {@link #pollAsync} 主动拉取消息，调用方自行控制消费节奏。</li>
  * </ul>
  *
@@ -24,7 +24,7 @@ import java.util.function.Predicate;
  * 所有监听器无异常时自动确认。
  *
  * <h3>线程模型</h3>
- * <p>推模式下，消费线程为守护线程，通过 {@code take()} 阻塞获取消息后提交到 {@link Executor} 异步执行。
+ * <p>推模式下，消费线程为守护线程，通过 {@code take()} 阻塞获取消息后提交到 {@link java.util.concurrent.Executor} 异步执行。
  * 监听器的 {@code onMessage} 回调在 Executor 线程中执行，不阻塞消费线程。
  *
  * @param <T> 消息类型

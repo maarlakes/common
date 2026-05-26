@@ -10,15 +10,15 @@ import java.lang.annotation.*;
  * 如果 {@link #value()} 为空，默认使用 {@code 类全限定名.方法名} 作为任务名。</p>
  *
  * <h3>使用示例</h3>
- * <pre>{@code
+ * <pre><code>
  * // 静态任务名
- * @SerialTask("order-process")
+ * &#64;SerialTask("order-process")
  * public void processOrder(Order order) { ... }
  *
  * // 动态任务名（SpEL 表达式引用方法参数）
- * @SerialTask("#orderId")
+ * &#64;SerialTask("#orderId")
  * public void processOrder(String orderId, Order order) { ... }
- * }</pre>
+ * </code></pre>
  *
  * <h3>锁超时策略</h3>
  * <p>当方法在 {@link #waitTime()} 内未能获取到锁时，会执行 {@link #strategy()} 指定的策略。

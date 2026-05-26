@@ -5,7 +5,7 @@ import jakarta.annotation.Nonnull;
 /**
  * 责任链工厂，负责发现处理器并构建可执行的链式调用。
  *
- * <p>工厂首先通过 {@link #createHandlers} 发现指定类型的所有处理器实例，
+ * <p>工厂首先通过 {@code createHandlers} 发现指定类型的所有处理器实例，
  * 然后根据不同的结果收集策略创建动态代理或链调用器。
  *
  * <p>提供了三种便捷方法来创建不同结果策略的代理：

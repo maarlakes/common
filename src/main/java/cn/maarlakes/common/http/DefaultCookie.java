@@ -10,7 +10,7 @@ import java.util.Objects;
  * {@link Cookie} 的默认实现，不可变地持有 Cookie 的所有属性。
  *
  * <p>equals/hashCode 基于 name + domain（忽略大小写）+ path 三个字段计算，
- * 与 RFC 6265 规范一致。compareTo 的排序规则为 name > domain > path 的字典序。</p>
+ * 与 RFC 6265 规范一致。compareTo 的排序规则为 name &gt; domain &gt; path 的字典序。</p>
  *
  * @author linjpxc
  */
