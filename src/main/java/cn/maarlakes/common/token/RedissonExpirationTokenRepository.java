@@ -26,6 +26,7 @@ import java.util.concurrent.CompletionStage;
  */
 public class RedissonExpirationTokenRepository<T extends ExpirationAppToken<A, V>, A, V> extends RedissonCacheableAppTokenRepository<T, A, V> implements ExpirationTokenRepository<T, A, V> {
     private static final Logger log = LoggerFactory.getLogger(RedissonExpirationTokenRepository.class);
+    private static final int MAX_REFRESH_DEPTH = 3;
 
     public RedissonExpirationTokenRepository(@Nonnull RedissonClient client, @Nonnull String namespace, @Nonnull TokenFactory<T, A, V> tokenFactory) {
         super(client, namespace, tokenFactory);
@@ -46,13 +47,23 @@ public class RedissonExpirationTokenRepository<T extends ExpirationAppToken<A, V
     @Nonnull
     @Override
     public CompletionStage<T> getTokenAsync(@Nonnull A appId) {
+        return this.getTokenAsync(appId, 0);
+    }
+
+    private CompletionStage<T> getTokenAsync(@Nonnull A appId, int depth) {
         return super.getTokenAsync(appId)
                 .thenCompose(token -> {
                     if (Tokens.isExpired(token)) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Token 已过期，触发刷新：namespace={}，appId={}，过期时间={}", this.namespace, appId, token.getExpiresAt());
+                        if (depth >= MAX_REFRESH_DEPTH) {
+                            log.warn("Token 刷新次数超过限制：namespace={}，appId={}，最大深度={}", this.namespace, appId, MAX_REFRESH_DEPTH);
+                            final CompletableFuture<T> fail = new CompletableFuture<>();
+                            fail.completeExceptionally(new TokenException("Token 刷新次数超过限制"));
+                            return fail;
                         }
-                        return this.refreshAsync(token);
+                        if (log.isDebugEnabled()) {
+                            log.debug("Token 已过期，触发刷新：namespace={}，appId={}，深度={}，过期时间={}", this.namespace, appId, depth + 1, token.getExpiresAt());
+                        }
+                        return this.refreshAsync(token, depth + 1);
                     }
                     return CompletableFuture.completedFuture(token);
                 });
@@ -92,13 +103,17 @@ public class RedissonExpirationTokenRepository<T extends ExpirationAppToken<A, V
     @Nonnull
     @Override
     public CompletionStage<T> refreshAsync(@Nonnull T token) {
+        return this.refreshAsync(token, 0);
+    }
+
+    private CompletionStage<T> refreshAsync(@Nonnull T token, int depth) {
         return this.mapCache.removeAsync(token.getAppId(), token)
                 .toCompletableFuture()
                 .thenCompose(r -> {
                     if (log.isDebugEnabled()) {
                         log.debug("已从 Redis 移除旧 Token，准备重新创建：namespace={}，appId={}", this.namespace, token.getAppId());
                     }
-                    return this.getTokenAsync(token.getAppId());
+                    return this.getTokenAsync(token.getAppId(), depth);
                 });
     }
 }

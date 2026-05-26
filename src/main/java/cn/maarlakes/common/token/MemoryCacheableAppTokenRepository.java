@@ -113,26 +113,34 @@ public class MemoryCacheableAppTokenRepository<T extends AppToken<A, V>, A, V> i
     @Nonnull
     @Override
     public CompletionStage<T> getTokenAsync(@Nonnull A appId) {
-        return this.cacheTokens.computeIfAbsent(appId, key -> {
-            if (log.isDebugEnabled()) {
-                log.debug("内存缓存未命中，开始创建 Token：appId={}", key);
-            }
-            final CompletableFuture<T> future = new CompletableFuture<>();
-            this.tokenFactory.createToken(key)
-                    .thenAccept(t -> {
-                        if (log.isInfoEnabled()) {
-                            log.info("Token 创建成功：appId={}，过期时间={}", key, t instanceof ExpirationAppToken ? ((ExpirationAppToken<?, ?>) t).getExpiresAt() : "无");
-                        }
-                        future.complete(t);
-                    })
-                    .exceptionally(error -> {
-                        this.cacheTokens.remove(key, future);
-                        final TokenException ex = Tokens.newTokenException(error);
-                        log.warn("Token 创建失败：appId={}，原因：{}", key, ex.getMessage());
-                        future.completeExceptionally(ex);
-                        return null;
-                    });
-            return future;
-        });
+        CompletableFuture<T> existing = this.cacheTokens.get(appId);
+        if (existing != null) {
+            return existing;
+        }
+
+        final CompletableFuture<T> future = new CompletableFuture<>();
+        final CompletableFuture<T> prev = this.cacheTokens.putIfAbsent(appId, future);
+        if (prev != null) {
+            return prev;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("内存缓存未命中，开始创建 Token：appId={}", appId);
+        }
+        this.tokenFactory.createToken(appId)
+                .thenAccept(t -> {
+                    if (log.isInfoEnabled()) {
+                        log.info("Token 创建成功：appId={}，过期时间={}", appId, t instanceof ExpirationAppToken ? ((ExpirationAppToken<?, ?>) t).getExpiresAt() : "无");
+                    }
+                    future.complete(t);
+                })
+                .exceptionally(error -> {
+                    this.cacheTokens.remove(appId, future);
+                    final TokenException ex = Tokens.newTokenException(error);
+                    log.warn("Token 创建失败：appId={}，原因：{}", appId, ex.getMessage());
+                    future.completeExceptionally(ex);
+                    return null;
+                });
+        return future;
     }
 }

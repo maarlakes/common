@@ -24,6 +24,7 @@ import java.util.concurrent.CompletionStage;
  */
 public class MemoryExpirationTokenRepository<T extends ExpirationAppToken<A, V>, A, V> extends MemoryCacheableAppTokenRepository<T, A, V> implements ExpirationTokenRepository<T, A, V> {
     private static final Logger log = LoggerFactory.getLogger(MemoryExpirationTokenRepository.class);
+    private static final int MAX_REFRESH_DEPTH = 3;
 
     public MemoryExpirationTokenRepository(@Nonnull TokenFactory<T, A, V> tokenFactory) {
         super(tokenFactory);
@@ -40,13 +41,23 @@ public class MemoryExpirationTokenRepository<T extends ExpirationAppToken<A, V>,
     @Nonnull
     @Override
     public CompletionStage<T> getTokenAsync(@Nonnull A appId) {
+        return this.getTokenAsync(appId, 0);
+    }
+
+    private CompletionStage<T> getTokenAsync(@Nonnull A appId, int depth) {
         return super.getTokenAsync(appId)
                 .thenCompose(token -> {
                     if (Tokens.isExpired(token)) {
-                        if (log.isDebugEnabled()) {
-                            log.debug("Token 已过期，触发刷新：appId={}，过期时间={}", appId, token.getExpiresAt());
+                        if (depth >= MAX_REFRESH_DEPTH) {
+                            log.warn("Token 刷新次数超过限制：appId={}，最大深度={}", appId, MAX_REFRESH_DEPTH);
+                            final CompletableFuture<T> fail = new CompletableFuture<>();
+                            fail.completeExceptionally(new TokenException("Token 刷新次数超过限制"));
+                            return fail;
                         }
-                        return this.refreshAsync(token);
+                        if (log.isDebugEnabled()) {
+                            log.debug("Token 已过期，触发刷新：appId={}，深度={}，过期时间={}", appId, depth + 1, token.getExpiresAt());
+                        }
+                        return this.refreshAsync(token, depth + 1);
                     }
                     return CompletableFuture.completedFuture(token);
                 });
@@ -91,6 +102,10 @@ public class MemoryExpirationTokenRepository<T extends ExpirationAppToken<A, V>,
     @Nonnull
     @Override
     public CompletionStage<T> refreshAsync(@Nonnull T token) {
+        return this.refreshAsync(token, 0);
+    }
+
+    private CompletionStage<T> refreshAsync(@Nonnull T token, int depth) {
         final CompletableFuture<T> future = this.cacheTokens.get(token.getAppId());
         if (future != null && future.isDone() && !future.isCompletedExceptionally() && token.equals(future.getNow(null))) {
             this.cacheTokens.remove(token.getAppId(), future);
@@ -98,6 +113,6 @@ public class MemoryExpirationTokenRepository<T extends ExpirationAppToken<A, V>,
                 log.debug("已从缓存移除旧 Token，准备重新创建：appId={}", token.getAppId());
             }
         }
-        return this.getTokenAsync(token.getAppId());
+        return this.getTokenAsync(token.getAppId(), depth);
     }
 }

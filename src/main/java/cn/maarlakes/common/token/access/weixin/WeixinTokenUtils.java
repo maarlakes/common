@@ -48,6 +48,9 @@ public final class WeixinTokenUtils {
     @Nonnull
     public static AccessToken toWeixinToken(@Nonnull String json, @Nonnull AppId appId, @Nonnull Instant now) {
         final JSONObject obj = JSON.parseObject(json);
+        if (obj == null) {
+            throw new WeixinTokenException(-1, "响应解析失败");
+        }
         final String accessToken = obj.getString("access_token");
         if (accessToken == null || accessToken.isEmpty()) {
             final int errcode = obj.getIntValue("errcode", -1);
